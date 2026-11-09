@@ -96,22 +96,26 @@ On Windows, clone or pull on the Linux machine rather than copying files across,
 ## Repository layout (planned)
 
 ```
-docs/        plan.md, handoff.md, final report
+docs/        plan.md, handoff.md, phases.md, locking.md (Phase 3), final report
 patches/     git format-patch series against v7.2.15
 scripts/     test and measurement scripts (each starts with an SPDX line)
 results/     raw logs from the baseline and final runs
 ```
 
-## Schedule
+## Plan
 
-| Phase | Content |
-|---|---|
-| 0 | Environment checks, second machine, baseline for the stock driver |
-| 1 | Kconfig, structure fields, ethtool plumbing, no behaviour change |
-| 2 | Counters, DIM sampling, work function, profile table |
-| 3 | Re-apply after hardware start and link change, cancel on down, locking review |
-| 4 | Full measurement matrix and table tuning |
-| 5 | Report and demo |
+Six phases, each ending with something that builds and loads. Full detail (tasks, files, tests, exit criteria, risks) is in [`docs/phases.md`](docs/phases.md).
+
+| Phase | Goal | Output | Done when |
+|---|---|---|---|
+| 0. Environment and baseline | Answer the open questions (chip variant, link speed, `DIMLIB`, second machine), back up the stock module, measure the stock driver | Updated handoff, baseline logs, repository | Every unknown is recorded and the unmodified module builds with a matching vermagic |
+| 1. Plumbing | `select DIMLIB`, new struct fields, `adaptive-rx` flag in ethtool, no hardware effect | Patches 0001 and 0002 | The flag is accepted and reported, and the driver behaves exactly like stock |
+| 2. Adaptive core | RX counters, DIM sampling in `rtl8169_poll()`, work function writing `IntrMitigate`, first level table | Patch 0003 | The level rises under bulk load and falls at idle, with no warnings |
+| 3. Robustness | Re-apply after hardware start and link change, cancel on down, locking review under lockdep | Patch 0004, `docs/locking.md` | Down/up, speed change, resume and a stress loop pass with no lockdep report or oops |
+| 4. Measurement and tuning | Four configurations across all workloads, repeated runs, table tuned from data | Raw logs, graphs, patch 0005 if the table changed | Every cell has repeated runs and the conclusion matches the numbers |
+| 5. Report and demo | Final patch series, report, demo on the real machine | `patches/`, report, demo script | A clean tree plus the patches builds, loads and runs the demo |
+
+Dates are left open until the course deadline is known; a tracker table is at the end of `docs/phases.md`.
 
 ## Conventions
 
