@@ -1,0 +1,40 @@
+# Normalise line endings. patch(1) breaks on CRLF, so source,
+# scripts and patch files must always be LF, even when checked
+# out on Windows.
+* text=auto
+
+*.c      text eol=lf
+*.h      text eol=lf
+*.S      text eol=lf
+Kconfig* text eol=lf
+Makefile text eol=lf
+*.mk     text eol=lf
+*.sh     text eol=lf
+*.py     text eol=lf
+*.md     text eol=lf
+*.txt    text eol=lf
+*.csv    text eol=lf
+*.json   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+LICENSE  text eol=lf
+LICENSES/* text eol=lf
+
+# Patches must be byte-exact: no EOL conversion and no whitespace
+# fixes on checkout, otherwise `git am` and `patch -p1` can fail.
+*.patch  -text
+*.diff   -text
+
+# Binary files
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.pdf    binary
+*.pcap   binary
+*.pcapng binary
+
+# Report the right language on GitHub
+*.patch  linguist-documentation
+docs/*   linguist-documentation
+results/* linguist-generated
