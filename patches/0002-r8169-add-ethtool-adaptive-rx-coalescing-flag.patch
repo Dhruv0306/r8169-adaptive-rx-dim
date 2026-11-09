@@ -1,0 +1,51 @@
+From e08ae27060c7350d0caa486be81138a999e11415 Mon Sep 17 00:00:00 2001
+From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
+Date: Mon, 9 Nov 2026 12:37:19 +0000
+Subject: [PATCH 2/2] r8169: add ethtool adaptive-rx coalescing flag
+
+Advertise ETHTOOL_COALESCE_USE_ADAPTIVE_RX, report the flag from
+rtl_get_coalesce() and store it from rtl_set_coalesce(). Both functions
+still return -EOPNOTSUPP on RTL8125, so the setting is rejected there as
+before.
+
+The flag has no effect on the hardware yet; the DIM sampling and the
+work function that applies a level follow in a later patch. Turning the
+flag off does not change the static settings either.
+
+Co-authored-by: Claude <noreply@anthropic.com>
+---
+ drivers/net/ethernet/realtek/r8169_main.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/realtek/r8169_main.c b/drivers/net/ethernet/realtek/r8169_main.c
+index 40b6d4e..5a0ded5 100644
+--- a/drivers/net/ethernet/realtek/r8169_main.c
++++ b/drivers/net/ethernet/realtek/r8169_main.c
+@@ -2129,6 +2129,8 @@ static int rtl_get_coalesce(struct net_device *dev,
+ 	c_fr = FIELD_GET(RTL_COALESCE_RX_FRAMES, intrmit);
+ 	ec->rx_max_coalesced_frames = (c_us || c_fr) ? c_fr * 4 : 1;
+ 
++	ec->use_adaptive_rx_coalesce = tp->rx_dim_enabled;
++
+ 	return 0;
+ }
+ 
+@@ -2219,6 +2221,8 @@ static int rtl_set_coalesce(struct net_device *dev,
+ 	RTL_W16(tp, CPlusCmd, tp->cp_cmd);
+ 	rtl_pci_commit(tp);
+ 
++	tp->rx_dim_enabled = ec->use_adaptive_rx_coalesce;
++
+ 	return 0;
+ }
+ 
+@@ -2425,7 +2429,8 @@ static int rtl8169_set_link_ksettings(struct net_device *ndev,
+ 
+ static const struct ethtool_ops rtl8169_ethtool_ops = {
+ 	.supported_coalesce_params = ETHTOOL_COALESCE_USECS |
+-				     ETHTOOL_COALESCE_MAX_FRAMES,
++				     ETHTOOL_COALESCE_MAX_FRAMES |
++				     ETHTOOL_COALESCE_USE_ADAPTIVE_RX,
+ 	.get_drvinfo		= rtl8169_get_drvinfo,
+ 	.get_regs_len		= rtl8169_get_regs_len,
+ 	.get_link		= ethtool_op_get_link,
