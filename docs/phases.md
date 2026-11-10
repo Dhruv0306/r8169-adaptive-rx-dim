@@ -195,7 +195,7 @@ Update this table when a phase finishes, and link its results file. Planned date
 
 | Phase | Planned finish | Actual finish | Notes |
 |---|---|---|---|
-| 0 | | | In progress. Machine checks done; second machine, stock baseline and `PktCntrDisable` reading open. [Results](results/phase_0_environment_and_baseline.md) |
+| 0 | | | In progress. Machine checks, source reading and register check done; blocked on a second machine for the stock baseline. [Results](results/phase_0_environment_and_baseline.md) |
 | 1 | | 2026-11-10 | Done. Patches 0001 and 0002 built, signed and loaded. [Results](results/phase_1_plumbing.md) |
 | 2 | | | |
 | 3 | | | |

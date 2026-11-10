@@ -67,7 +67,7 @@ The running kernel already contains the network-quota hooks, so the baseline and
 
 Measured facts (chip RTL8168h/8111h, link speed, static coalescing support, `DIMLIB=y` with `r8169` a module, `MODULE_SIG_FORCE=y`) are recorded in `docs/results/phase_0_environment_and_baseline.md`.
 
-Still unknown: whether a second machine for `iperf3` and `netperf` is available and how it connects, and the stock-driver baseline.
+Still open: no second machine for `iperf3` and `netperf` is available yet (as of 2026-11-10), so the stock-driver baseline is blocked.
 
 Conventions carried over from the other kernel projects:
 

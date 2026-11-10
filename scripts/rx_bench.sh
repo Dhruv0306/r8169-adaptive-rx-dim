@@ -161,7 +161,7 @@ measure() {
 	rates=$(awk -v ts0="$ts0" -v ts1="$ts1" -v i0="$i0" -v i1="$i1" \
 		-v s0="$s0" -v s1="$s1" -v b0="$b0" -v b1="$b1" -v t0="$t0" -v t1="$t1" \
 		'BEGIN { dt = ts1 - ts0; dtt = t1 - t0;
-			printf "%.2f,%.0f,%.0f,%.1f", dt, (i1 - i0) / dt, (s1 - s0) / dt, (dtt > 0 ? 100 * (b1 - b0) / dtt : 0) }')
+			printf "%.2f,%.1f,%.1f,%.1f", dt, (i1 - i0) / dt, (s1 - s0) / dt, (dtt > 0 ? 100 * (b1 - b0) / dtt : 0) }')
 
 	if [ "$rc" -eq 0 ]; then
 		status=ok
@@ -174,6 +174,12 @@ measure() {
 }
 
 # ---- setup snapshot -------------------------------------------------
+
+# A wrong interrupt number would give a silent 0, so fail early instead.
+if [ -z "$(irq_total)" ]; then
+	echo "interrupt $IRQ not found in /proc/interrupts; find it with: grep $DEV /proc/interrupts" >&2
+	exit 1
+fi
 
 {
 	echo "date: $(date -Is)"
@@ -193,6 +199,8 @@ measure() {
 	ethtool "$DEV" 2>&1 | grep -E 'Speed|Duplex|Link detected'
 	echo "--- ethtool -c"
 	ethtool -c "$DEV" 2>&1
+	echo "--- /proc/interrupts row"
+	grep -E "^ *$IRQ:" /proc/interrupts
 	echo "--- registers"
 	"$(dirname "$0")/read_intrmit.sh" "$DEV" 2>&1 || true
 } > "$OUT/meta_$(date +%Y%m%d_%H%M%S).txt"

@@ -1,6 +1,6 @@
 # Phase 0: Environment and baseline
 
-Status: in progress (started 2026-11-10). The machine checks, the source reading and the register check are done; the second machine and the stock-driver baseline are open.
+Status: in progress (started 2026-11-10). The machine checks, the source reading and the register check are done. The stock-driver baseline is blocked: no second machine is available yet.
 
 Plan: [`../phases.md`](../phases.md), Phase 0.
 
@@ -13,9 +13,9 @@ Plan: [`../phases.md`](../phases.md), Phase 0.
 | 3 | Check the kernel configuration | Done |
 | 4 | Back up the stock module | Done |
 | 5 | Check the build path | Done with the Phase 1 patched tree; an unmodified-tree build was not run separately |
-| 6 | Arrange the second machine | Open |
+| 6 | Arrange the second machine | Open: none available on 2026-11-10 |
 | 7 | Create the repository | Done: https://github.com/Dhruv0306/r8169-adaptive-rx-dim |
-| 8 | Baseline for the stock driver | Open |
+| 8 | Baseline for the stock driver | Blocked on task 6; the benchmark script is written and its no-peer test has run (below) |
 | 9 | Read `rtl_set_coalesce()` for the `PktCntrDisable` question | Done: source reading and register check (below) |
 
 ## Facts recorded
@@ -64,7 +64,23 @@ This confirms on the real hardware that a timer-only setting runs with `PktCntrD
 ## Scripts added
 
 - `scripts/read_intrmit.sh`: prints the live moderation state from the registers. Reused later for the stepped-load demo.
-- `scripts/rx_bench.sh`: receive-side benchmark for the baseline and later runs. Peer sends to this machine (`iperf3 -R`, `netperf TCP_RR`); records NIC interrupts per second, NET_RX softirqs per second and CPU busy percentage per run, plus the workload result, in `results/baseline/<label>/summary.csv`. TCP and UDP latency probes avoid ICMP. Tested here only for the idle workload, the register decoding and the result parsers; the `iperf3` and `netperf` runs and their selectors still have to be confirmed on the first real run.
+- `scripts/rx_bench.sh`: receive-side benchmark for the baseline and later runs. Peer sends to this machine (`iperf3 -R`, `netperf TCP_RR`); records NIC interrupts per second, NET_RX softirqs per second and CPU busy percentage per run, plus the workload result, in `results/baseline/<label>/summary.csv`. TCP and UDP latency probes avoid ICMP. Tested here only for the idle workload, the register decoding and the result parsers; the `iperf3` and `netperf` runs and their selectors still have to be confirmed on the first real run, which needs the peer.
+
+### No-peer test of `rx_bench.sh` (run 2026-11-10)
+
+Command: `bash scripts/rx_bench.sh -l idle-test -w idle -n 2 -t 10 -o /tmp/rxtest`, as root on the machine under test.
+
+| Run | Seconds | `irq_per_s` | `net_rx_softirq_per_s` | `cpu_busy_pct` | Status |
+|---|---|---|---|---|---|
+| 1 | 10.01 | 0 | 70 | 3.2 | ok |
+| 2 | 10.01 | 0 | 71 | 1.5 | ok |
+
+The script runs end to end and writes `summary.csv` and the meta file. The numbers are **not yet trustworthy as an interrupt measurement**, for two reasons found while reading them:
+
+- The interrupt rate was printed with no decimals, so any rate below 0.5 per second shows as 0. On an idle network with about one packet per second that is a plausible result and also hides the real value.
+- The script took the interrupt number from sysfs and, if that number had matched no row of `/proc/interrupts`, it would silently report 0.
+
+Both were fixed afterwards: the two rates now print with one decimal, and the script stops with an error if the interrupt number is not in `/proc/interrupts`. The meta file now also records the matching `/proc/interrupts` row. The idle test has to be repeated with the fixed script. The 70 NET_RX softirqs per second at idle are not from the NIC alone, since local traffic and other sources also raise that softirq.
 
 ## Observations
 
@@ -75,5 +91,6 @@ This confirms on the real hardware that a timer-only setting runs with `PktCntrD
 
 ## Open items
 
-1. Second machine: is one available, and how does it connect (a direct cable or the same network)? Which of `iperf3`, `netperf` and `sockperf` are installed?
-2. Baseline for the stock driver: the "Stock" row of the measurement matrix (`plan.md` section 5), raw logs in `results/baseline/`.
+1. Second machine: none is available yet (2026-11-10). It needs to run `iperf3 -s` and `netserver`, on a direct cable or the same network. Options and their limits are to be settled before the baseline.
+2. Baseline for the stock driver: the "Stock" row of the measurement matrix (`plan.md` section 5), raw logs in `results/baseline/`. Blocked on item 1.
+3. Repeat the idle test with the fixed `rx_bench.sh` and confirm the interrupt count reads the NIC (the rate must rise when something is downloaded during the run).
