@@ -1,6 +1,6 @@
 # Phase 0: Environment and baseline
 
-Status: in progress (started 2026-11-10). The machine checks are done; the second machine, the stock-driver baseline and the `PktCntrDisable` reading are open.
+Status: in progress (started 2026-11-10). The machine checks, the source reading and the register check are done; the second machine and the stock-driver baseline are open.
 
 Plan: [`../phases.md`](../phases.md), Phase 0.
 
@@ -16,7 +16,7 @@ Plan: [`../phases.md`](../phases.md), Phase 0.
 | 6 | Arrange the second machine | Open |
 | 7 | Create the repository | Done: https://github.com/Dhruv0306/r8169-adaptive-rx-dim |
 | 8 | Baseline for the stock driver | Open |
-| 9 | Read `rtl_set_coalesce()` for the `PktCntrDisable` question | Open |
+| 9 | Read `rtl_set_coalesce()` for the `PktCntrDisable` question | Done: source reading and register check (below) |
 
 ## Facts recorded
 
@@ -35,6 +35,37 @@ Plan: [`../phases.md`](../phases.md), Phase 0.
 | Backups | Stock `r8169.ko`, `Kconfig` and `r8169_main.c` in root's `~/r8169-stock-src/` |
 | Static coalescing | Accepted. `ethtool -C enp3s0 rx-usecs 50` reads back as `rx-usecs 50` with `rx-frames 0`. `rx-usecs 0` restores `rx-usecs 0` and `rx-frames 1` (the "1 means no frame limit" convention). TX stayed at `tx-usecs 0`, `tx-frames 1` |
 
+## What the v7.2.15 source says about timer-only operation
+
+Read from the unpatched `r8169_main.c` of `v7.2.15` (line numbers refer to that file).
+
+- **This chip takes the `PktCntrDisable` branch.** XID 541 maps to `RTL_GIGA_MAC_VER_46` (line 140), and `rtl_is_8168evl_up()` (line 871) is true for versions 34 to 52 except 39.
+- **Static path.** `rtl_set_coalesce()` (lines 2202 to 2212) sets `PktCntrDisable` in `tp->cp_cmd` when both frame limits are zero, and clears it when either is set. Timer-only is exactly the "both zero" case, so the stock driver's own timer-only configuration runs with `PktCntrDisable` set. The code does not say what the hardware would do with timer-only and the bit clear, so the adaptive mode should copy the stock configuration and keep the bit set.
+- **Where the bit lives.** At probe, `tp->cp_cmd = RTL_R16(CPlusCmd) & CPCMD_MASK` (line 5698). The mask does not include `PktCntrDisable`, so the bit starts cleared. `rtl_hw_start()` writes `CPlusCmd = tp->cp_cmd` before `rtl_hw_start_8168()` zeroes `IntrMitigate` (lines 4083 and 4109). After a first `ethtool -C` that leaves no frame limit (which includes every `rx-usecs 0` test run so far), the bit and the `INTT` unit bits stay in `tp->cp_cmd` and are written back on every hardware start.
+- **Consequence for Phase 2 and 3.** After a hardware start only `IntrMitigate` is lost, so the re-apply step only has to write that register, which matches the rule that the work function never writes `CPlusCmd`. The `INTT` unit depends on link speed, so it must be chosen again on a speed change.
+- **Timer unit on this chip.** `rtl_coalesce_info_8168_8136` at 1000 Mbit/s gives 5, 40, 80 or 160 microseconds (`INTT` 0 to 3). `rtl_coalesce_choose_scale()` picks the smallest unit whose largest timer (15 units) covers the request. The timer field is therefore at most 75, 600, 1200 or 2400 microseconds. This matches the earlier readback: `rx-usecs 50` fits the 5 microsecond unit and reads back as 50.
+- **Side effect on the running machine.** Because of the `PktCntrDisable` rule above, the machine is no longer in its freshly booted state (bit clear) once any `ethtool -C` has been run. A reboot or `rmmod` and `modprobe` returns it to that state.
+
+### Register check (run 2026-11-10)
+
+`scripts/read_intrmit.sh` decodes `CPlusCmd` (0xe0) and `IntrMitigate` (0xe2) from `ethtool -d`. The four settings were applied in this order, each read back from the hardware:
+
+| Setting applied | `CPlusCmd` | `PktCntrDisable` | `INTT` | `IntrMitigate` | Matches the source |
+|---|---|---|---|---|---|
+| `rx-usecs 0 rx-frames 1` | `0x20e0` | 1 | 0 | `0x0000` | Yes |
+| `rx-usecs 50` | `0x20e0` | 1 | 0 | `0x00a0` (RX timer 10) | Yes |
+| `rx-usecs 50 rx-frames 8` | `0x2060` | 0 | 0 | `0x00a2` (RX timer 10, frames field 2) | Yes |
+| `rx-usecs 100` | `0x2061` | 0 | 1 (40 microseconds) | `0x0032` (RX timer 3, frames field 2) | Yes, see below |
+
+The fourth row differs from the value first predicted (`PktCntrDisable` 1, `IntrMitigate` `0x0030`), and the prediction was wrong, not the driver: `ethtool -C` merges the new setting with the current ones, so `rx-frames 8` from the previous step was still in force. A frame limit set means `PktCntrDisable` is cleared and the frames field stays 2, which is what the registers show. The timer part is as predicted: 100 microseconds does not fit the 5 microsecond unit (75 microseconds at most), so the 40 microsecond unit (`INTT` 1) is chosen and the timer is 3. The settings were put back with `rx-usecs 0 rx-frames 1` afterwards.
+
+This confirms on the real hardware that a timer-only setting runs with `PktCntrDisable` set, that a frame limit clears it, that the timer unit follows the requested time, and that `read_intrmit.sh` decodes the registers correctly. The Phase 2 and 3 design can rely on all four.
+
+## Scripts added
+
+- `scripts/read_intrmit.sh`: prints the live moderation state from the registers. Reused later for the stepped-load demo.
+- `scripts/rx_bench.sh`: receive-side benchmark for the baseline and later runs. Peer sends to this machine (`iperf3 -R`, `netperf TCP_RR`); records NIC interrupts per second, NET_RX softirqs per second and CPU busy percentage per run, plus the workload result, in `results/baseline/<label>/summary.csv`. TCP and UDP latency probes avoid ICMP. Tested here only for the idle workload, the register decoding and the result parsers; the `iperf3` and `netperf` runs and their selectors still have to be confirmed on the first real run.
+
 ## Observations
 
 - **ICMP does not work on this network.** `ping` to the gateway and to `8.8.8.8` got no replies, while the gateway answered ARP (`REACHABLE`) and `curl https://example.com` returned HTTP 200. The idle-latency workload in `plan.md` section 5.3 must therefore use a TCP or UDP probe (for example `netperf` TCP_RR or `sockperf`).
@@ -46,4 +77,3 @@ Plan: [`../phases.md`](../phases.md), Phase 0.
 
 1. Second machine: is one available, and how does it connect (a direct cable or the same network)? Which of `iperf3`, `netperf` and `sockperf` are installed?
 2. Baseline for the stock driver: the "Stock" row of the measurement matrix (`plan.md` section 5), raw logs in `results/baseline/`.
-3. Read `rtl_set_coalesce()` and the hardware start code to settle whether timer-only operation needs `PktCntrDisable`. The chip is newer than 8168evl, so the `PktCntrDisable` branch probably applies; confirm with line numbers.

@@ -49,7 +49,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 5. Check the build path once with an unmodified tree: `make modules_prepare`, `make M=drivers/net/ethernet/realtek modules`, and `modinfo -F vermagic` against `uname -r`. Load nothing yet.
 6. Arrange the second machine: how it connects, which `iperf3`, `netperf` or `sockperf` versions it has, and whether the link can be forced to 100 Mbit/s for the speed-change test.
 7. Create the repository layout and the first branch. Add the measurement scripts as stubs, each with the SPDX line.
-8. Take the baseline for the stock driver (the measurement matrix in `plan.md` section 5, stock row only). Keep raw logs in `results/baseline/`.
+8. Take the baseline for the stock driver (the measurement matrix in `plan.md` section 5, stock row only). Keep raw logs in `results/baseline/`. Use `scripts/rx_bench.sh` (the peer runs `iperf3 -s` and `netserver`) and set the configuration, for example the stock module, before each labelled run.
 9. Read `rtl_set_coalesce()` and the hardware start code again for the open question: does timer-only operation depend on `PktCntrDisable`? Write down the answer with line numbers.
 
 **Files touched.** None in the kernel. New files: measurement scripts and `results/baseline/`.
