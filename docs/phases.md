@@ -25,13 +25,14 @@ Each phase ends with something that builds and loads, so a problem can always be
 - Patches are produced with `git format-patch` against `v7.2.15` and applied to the kernel tarball tree with `patch -p1`.
 - Before any module load: the stock `r8169` module is backed up, and a console or phone tether is ready, because the NIC is the machine's only network connection.
 - Every phase ends with `scripts/checkpatch.pl --strict` on the new patches, and a clean `make W=1` build of the module.
-- Record what was learned in `docs/handoff.md` at the end of each phase, so the next phase starts from facts and not memory.
+- At the end of each phase, write its results to `docs/results/phase_<number>_<title>.md`: what was done, the commands and outputs, the test results, deviations from the plan, gaps and open items. The files are `phase_0_environment_and_baseline.md`, `phase_1_plumbing.md`, `phase_2_adaptive_core.md`, `phase_3_robustness.md`, `phase_4_measurement_and_tuning.md` and `phase_5_report_and_demo.md`. A phase is not done until its results file exists.
+- `docs/handoff.md` is only for moving context into a new chat. It is not a results log. Phase results go in `docs/results/`, and the handoff points to them.
 
 ---
 
 ## Phase 0: Environment checks and baseline
 
-**Goal.** Replace every "not yet known" in the handoff with a fact, and record what the unmodified driver does on this machine.
+**Goal.** Replace every "not yet known" about the machine with a recorded fact, and record what the unmodified driver does on this machine.
 
 **Tasks**
 
@@ -53,7 +54,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 
 **Files touched.** None in the kernel. New files: measurement scripts and `results/baseline/`.
 
-**Deliverables.** Updated `docs/handoff.md` with all section 5 unknowns answered, baseline logs, the stock-module backup path, the repository with a first branch.
+**Deliverables.** `docs/results/phase_0_environment_and_baseline.md` with all the machine unknowns answered, baseline logs, the stock-module backup path, the repository with a first branch.
 
 **Done when.** The chip variant, link speed, `DIMLIB` state and second-machine setup are recorded, a baseline exists for every workload, and the unmodified module builds with a matching vermagic.
 
@@ -104,7 +105,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 
 **Tests.** Short manual checks first: with `adaptive-rx on`, run `ping` at light load and a bulk `iperf3`, and watch `ethtool -c` change with the load. Then F1 and F3 again, and F8.
 
-**Deliverables.** Patch 0003 (counters, sampling, work function, table). A short note in `docs/handoff.md` on the table and unit chosen and why.
+**Deliverables.** Patch 0003 (counters, sampling, work function, table). `docs/results/phase_2_adaptive_core.md` with the table and unit chosen and why.
 
 **Done when.** The level visibly rises under bulk load and falls back at idle, with no kernel warnings, and adaptive-off behaviour is unchanged.
 

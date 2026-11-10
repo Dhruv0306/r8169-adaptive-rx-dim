@@ -96,7 +96,8 @@ On Windows, clone or pull on the Linux machine rather than copying files across,
 ## Repository layout (planned)
 
 ```
-docs/        plan.md, handoff.md, phases.md, locking.md (Phase 3), final report
+docs/        plan.md, phases.md, handoff.md (context for a new chat), locking.md (Phase 3), final report
+docs/results/ one file per phase: phase_<number>_<title>.md
 patches/     git format-patch series against v7.2.15
 scripts/     test and measurement scripts (each starts with an SPDX line)
 results/     raw logs from the baseline and final runs
@@ -115,7 +116,7 @@ Six phases, each ending with something that builds and loads. Full detail (tasks
 | 4. Measurement and tuning | Four configurations across all workloads, repeated runs, table tuned from data | Raw logs, graphs, patch 0005 if the table changed | Every cell has repeated runs and the conclusion matches the numbers |
 | 5. Report and demo | Final patch series, report, demo on the real machine | `patches/`, report, demo script | A clean tree plus the patches builds, loads and runs the demo |
 
-Dates are left open until the course deadline is known; a tracker table is at the end of `docs/phases.md`.
+Results of each phase are recorded in `docs/results/phase_<number>_<title>.md` (see [phase 0](docs/results/phase_0_environment_and_baseline.md) and [phase 1](docs/results/phase_1_plumbing.md)). Dates are left open until the course deadline is known; a tracker table is at the end of `docs/phases.md`.
 
 ## Conventions
 
