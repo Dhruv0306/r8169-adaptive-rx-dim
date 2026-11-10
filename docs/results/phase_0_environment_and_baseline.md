@@ -75,12 +75,28 @@ Command: `bash scripts/rx_bench.sh -l idle-test -w idle -n 2 -t 10 -o /tmp/rxtes
 | 1 | 10.01 | 0 | 70 | 3.2 | ok |
 | 2 | 10.01 | 0 | 71 | 1.5 | ok |
 
-The script runs end to end and writes `summary.csv` and the meta file. The numbers are **not yet trustworthy as an interrupt measurement**, for two reasons found while reading them:
+The script runs end to end and writes `summary.csv` and the meta file. The numbers are **not valid as an interrupt measurement**, as the next test showed. Two problems were found while reading them:
 
 - The interrupt rate was printed with no decimals, so any rate below 0.5 per second shows as 0. On an idle network with about one packet per second that is a plausible result and also hides the real value.
 - The script took the interrupt number from sysfs and, if that number had matched no row of `/proc/interrupts`, it would silently report 0.
 
 Both were fixed afterwards: the two rates now print with one decimal, and the script stops with an error if the interrupt number is not in `/proc/interrupts`. The meta file now also records the matching `/proc/interrupts` row. The idle test has to be repeated with the fixed script. The 70 NET_RX softirqs per second at idle are not from the NIC alone, since local traffic and other sources also raise that softirq.
+
+### Idle test with a download running (run 2026-11-10)
+
+The `/proc/interrupts` row for the NIC is `135: ... IR-PCI-MSIX-0000:03:00.0 0-edge enp3s0`, with 242515 interrupts counted at the first look and 245249 at the second, all on one CPU. Interrupts are therefore being delivered to this row.
+
+A download of the Linux 6.12 tarball from kernel.org ran during a 10-second `idle` measurement (`-l dl-test2`). `curl` reported `http=200` and received 49,283,072 bytes in 15 seconds, about 3.3 MB per second.
+
+| Run | `irq_per_s` | `net_rx_softirq_per_s` | `cpu_busy_pct` |
+|---|---|---|---|
+| With download | 0.0 | 719.2 | 2.5 |
+
+The download clearly reached the machine (the NET_RX softirq rate rose from about 61 to 719 per second), yet `irq_per_s` stayed at 0.0. That is a contradiction, so the interrupt counter in the script was not reading the NIC's interrupt. The most likely cause is the number the script used: it came from `/sys/class/net/enp3s0/device/irq`, which for an MSI-X device is the legacy line and not the vector in `/proc/interrupts`. The earlier guard only checked that some row with that number exists, so it did not catch this. This is a hypothesis; the sysfs value was not printed.
+
+Fix: `rx_bench.sh` now finds the interrupt by matching the device name in the last column of `/proc/interrupts` (here row 135), then falls back to `msi_irqs` and finally to the sysfs value. It prints a warning if the row it ends up with is not named after the device. Tested on a copy of the real row. The earlier idle rows (`irq_per_s` 0) are discarded as not valid interrupt measurements.
+
+To do: confirm the cause with `cat /sys/class/net/enp3s0/device/irq` and `ls /sys/class/net/enp3s0/device/msi_irqs`, then repeat the download test with the fixed script.
 
 ## Observations
 
@@ -93,4 +109,4 @@ Both were fixed afterwards: the two rates now print with one decimal, and the sc
 
 1. Second machine: none is available yet (2026-11-10). It needs to run `iperf3 -s` and `netserver`, on a direct cable or the same network. Options and their limits are to be settled before the baseline.
 2. Baseline for the stock driver: the "Stock" row of the measurement matrix (`plan.md` section 5), raw logs in `results/baseline/`. Blocked on item 1.
-3. Repeat the idle test with the fixed `rx_bench.sh` and confirm the interrupt count reads the NIC (the rate must rise when something is downloaded during the run).
+3. Repeat the download test with the fixed `rx_bench.sh` and confirm `irq_per_s` rises during the download, and record the sysfs value that caused the wrong reading.
