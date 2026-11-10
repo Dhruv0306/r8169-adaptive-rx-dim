@@ -19,7 +19,7 @@
 #   -l LABEL     configuration name, for example stock or static-low
 #   -p PEER      address of the peer machine (not needed for -w idle)
 #   -d DEV       network interface            (default enp3s0)
-#   -i IRQ       NIC interrupt number         (default: read from sysfs)
+#   -i IRQ       NIC interrupt number         (default: found in /proc/interrupts by device name)
 #   -o OUTDIR    output directory             (default results/baseline)
 #   -n RUNS      repetitions per cell         (default 5)
 #   -t SECS      seconds per run              (default 20)
@@ -68,6 +68,17 @@ if [ "$need_peer" = 1 ] && [ -z "$PEER" ]; then
 	exit 2
 fi
 
+INTERRUPTS_FILE=${INTERRUPTS_FILE:-/proc/interrupts}
+
+# The row of /proc/interrupts named after the device is the reliable
+# source. "device/irq" in sysfs is the legacy line for MSI-X devices
+# such as this NIC and points at an unrelated interrupt.
+if [ -z "$IRQ" ]; then
+	IRQ=$(awk -v d="$DEV" '$NF == d { sub(":", "", $1); print $1; exit }' "$INTERRUPTS_FILE")
+fi
+if [ -z "$IRQ" ]; then
+	IRQ=$(ls "/sys/class/net/$DEV/device/msi_irqs" 2>/dev/null | head -n 1)
+fi
 if [ -z "$IRQ" ]; then
 	IRQ=$(cat "/sys/class/net/$DEV/device/irq" 2>/dev/null || true)
 fi
@@ -98,7 +109,7 @@ fi
 # ---- counters -------------------------------------------------------
 
 irq_total() {
-	awk -v irq="$IRQ:" '$1 == irq { s = 0; for (i = 2; i <= NF && $i ~ /^[0-9]+$/; i++) s += $i; print s }' /proc/interrupts
+	awk -v irq="$IRQ:" '$1 == irq { s = 0; for (i = 2; i <= NF && $i ~ /^[0-9]+$/; i++) s += $i; print s }' "$INTERRUPTS_FILE"
 }
 
 softirq_net_rx() {
@@ -177,8 +188,12 @@ measure() {
 
 # A wrong interrupt number would give a silent 0, so fail early instead.
 if [ -z "$(irq_total)" ]; then
-	echo "interrupt $IRQ not found in /proc/interrupts; find it with: grep $DEV /proc/interrupts" >&2
+	echo "interrupt $IRQ not found in $INTERRUPTS_FILE; find it with: grep $DEV /proc/interrupts" >&2
 	exit 1
+fi
+if ! grep -E "^ *$IRQ:" "$INTERRUPTS_FILE" | grep -qw "$DEV"; then
+	echo "warning: interrupt $IRQ is not named $DEV in $INTERRUPTS_FILE; check the row below" >&2
+	grep -E "^ *$IRQ:" "$INTERRUPTS_FILE" >&2
 fi
 
 {
@@ -200,7 +215,7 @@ fi
 	echo "--- ethtool -c"
 	ethtool -c "$DEV" 2>&1
 	echo "--- /proc/interrupts row"
-	grep -E "^ *$IRQ:" /proc/interrupts
+	grep -E "^ *$IRQ:" "$INTERRUPTS_FILE"
 	echo "--- registers"
 	"$(dirname "$0")/read_intrmit.sh" "$DEV" 2>&1 || true
 } > "$OUT/meta_$(date +%Y%m%d_%H%M%S).txt"
