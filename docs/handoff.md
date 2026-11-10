@@ -134,3 +134,4 @@ If `CONFIG_DIMLIB` is off in the running kernel, the new module cannot be loaded
 - `dmesg` is restricted for a normal user on this machine; use `su -`. `sudo` needs the password.
 - The running kernel enforces module signatures (`CONFIG_MODULE_SIG_FORCE=y`): a rebuilt `r8169.ko` must be signed with the key in `/usr/src/linux-7.2.15/certs/` before `insmod`. The recipe is in `docs/results/phase_1_plumbing.md`.
 - `ping` gets no replies on this network while TCP works, so latency probes must use TCP or UDP.
+- The NIC's interrupt is 135 (MSI-X, row `enp3s0` in `/proc/interrupts`). `/sys/class/net/enp3s0/device/irq` says 18, which is wrong for counting NIC interrupts; `scripts/rx_bench.sh` finds the right row by device name.

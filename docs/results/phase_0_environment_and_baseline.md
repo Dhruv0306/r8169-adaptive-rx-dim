@@ -15,7 +15,7 @@ Plan: [`../phases.md`](../phases.md), Phase 0.
 | 5 | Check the build path | Done with the Phase 1 patched tree; an unmodified-tree build was not run separately |
 | 6 | Arrange the second machine | Open: none available on 2026-11-10 |
 | 7 | Create the repository | Done: https://github.com/Dhruv0306/r8169-adaptive-rx-dim |
-| 8 | Baseline for the stock driver | Blocked on task 6; the benchmark script is written and its no-peer test has run (below) |
+| 8 | Baseline for the stock driver | Blocked on task 6; the benchmark script is written, and its interrupt counter is validated against a real download (below) |
 | 9 | Read `rtl_set_coalesce()` for the `PktCntrDisable` question | Done: source reading and register check (below) |
 
 ## Facts recorded
@@ -96,7 +96,19 @@ The download clearly reached the machine (the NET_RX softirq rate rose from abou
 
 Fix: `rx_bench.sh` now finds the interrupt by matching the device name in the last column of `/proc/interrupts` (here row 135), then falls back to `msi_irqs` and finally to the sysfs value. It prints a warning if the row it ends up with is not named after the device. Tested on a copy of the real row. The earlier idle rows (`irq_per_s` 0) are discarded as not valid interrupt measurements.
 
-To do: confirm the cause with `cat /sys/class/net/enp3s0/device/irq` and `ls /sys/class/net/enp3s0/device/msi_irqs`, then repeat the download test with the fixed script.
+### Download test with the fixed script (run 2026-11-10)
+
+The cause was confirmed: `cat /sys/class/net/enp3s0/device/irq` prints `18` (the legacy line), while `ls /sys/class/net/enp3s0/device/msi_irqs` lists `135`, the vector that `/proc/interrupts` shows for `enp3s0`. The script had been counting interrupt 18.
+
+Rerun (`-l dl-test3`, same kernel.org download in the background): `curl` received 96,468,992 bytes in 15 seconds, about 6.4 MB per second or 51 Mbit/s.
+
+| Run | `irq_per_s` | `net_rx_softirq_per_s` | `cpu_busy_pct` |
+|---|---|---|---|
+| With download | 65.8 | 2156.7 | 3.3 |
+
+The script now picks row 135 automatically and the counter responds to traffic, so the interrupt measurement is validated. The meta file shows the row `135: ... IR-PCI-MSIX-0000:03:00.0 0-edge enp3s0`, with its count rising to 260046.
+
+First data point, not a result (one uncontrolled internet download, stock settings): at about 51 Mbit/s the NIC raised only about 66 interrupts per second, far fewer than the packet rate, because NAPI was already polling. NET_RX softirqs (2157 per second) count more than the NIC's interrupts, since other sources also raise that softirq. This supports the project's own warning that NAPI limits the interrupt rate by itself under load, and it means the adaptive mode will only show a difference at much higher packet rates (small packets or near 1 Gbit/s), which needs the peer.
 
 ## Observations
 
@@ -109,4 +121,4 @@ To do: confirm the cause with `cat /sys/class/net/enp3s0/device/irq` and `ls /sy
 
 1. Second machine: none is available yet (2026-11-10). It needs to run `iperf3 -s` and `netserver`, on a direct cable or the same network. Options and their limits are to be settled before the baseline.
 2. Baseline for the stock driver: the "Stock" row of the measurement matrix (`plan.md` section 5), raw logs in `results/baseline/`. Blocked on item 1.
-3. Repeat the download test with the fixed `rx_bench.sh` and confirm `irq_per_s` rises during the download, and record the sysfs value that caused the wrong reading.
+3. Record a valid idle interrupt rate with the fixed `rx_bench.sh` (`-w idle`, no download).
