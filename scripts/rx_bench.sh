@@ -182,6 +182,9 @@ measure() {
 		result="-"
 	fi
 	echo "$LABEL,$workload,$param,$run,$rates,$status,$result" | tee -a "$CSV"
+
+	# let the servers on the peer and the NIC settle before the next run
+	sleep 2
 }
 
 # ---- setup snapshot -------------------------------------------------
