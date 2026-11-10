@@ -191,12 +191,12 @@ Each phase ends with something that builds and loads, so a problem can always be
 
 ## Phase tracker
 
-Fill in the dates once the course deadline is known.
+Update this table when a phase finishes, and link its results file. Planned dates are left blank until the course deadline is known.
 
 | Phase | Planned finish | Actual finish | Notes |
 |---|---|---|---|
-| 0 | | | |
-| 1 | | | |
+| 0 | | | In progress. Machine checks done; second machine, stock baseline and `PktCntrDisable` reading open. [Results](results/phase_0_environment_and_baseline.md) |
+| 1 | | 2026-11-10 | Done. Patches 0001 and 0002 built, signed and loaded. [Results](results/phase_1_plumbing.md) |
 | 2 | | | |
 | 3 | | | |
 | 4 | | | |
