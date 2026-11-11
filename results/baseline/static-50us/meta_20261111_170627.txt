@@ -1,0 +1,65 @@
+date: 2026-11-11T17:06:27+05:30
+label: static-50us
+peer: 10.8.1.53
+dev: enp3s0  irq: 135  secs: 20  runs: 5
+kernel: 7.2.15-netquota
+r8169 srcversion: 9BF0EA4C816C5F152E47686
+cpus: 20
+governor: powersave
+iperf3: iperf 3.16 (cJSON 1.7.15)
+netperf: Netperf version 2.7.0
+
+--- ethtool -i
+driver: r8169
+version: 7.2.15-netquota
+firmware-version: rtl8168h-2_0.0.2 02/26/15
+expansion-rom-version: 
+bus-info: 0000:03:00.0
+supports-statistics: yes
+supports-test: no
+supports-eeprom-access: no
+supports-register-dump: yes
+supports-priv-flags: no
+--- link
+	Speed: 1000Mb/s
+	Duplex: Full
+	Link detected: yes
+--- ethtool -c
+Coalesce parameters for enp3s0:
+Adaptive RX: off  TX: n/a
+stats-block-usecs:	n/a
+sample-interval:	n/a
+pkt-rate-low:		n/a
+pkt-rate-high:		n/a
+
+rx-usecs:	50
+rx-frames:	0
+rx-usecs-irq:	n/a
+rx-frames-irq:	n/a
+
+tx-usecs:	0
+tx-frames:	1
+tx-usecs-irq:	n/a
+tx-frames-irq:	n/a
+
+rx-usecs-low:	n/a
+rx-frame-low:	n/a
+tx-usecs-low:	n/a
+tx-frame-low:	n/a
+
+rx-usecs-high:	n/a
+rx-frame-high:	n/a
+tx-usecs-high:	n/a
+tx-frame-high:	n/a
+
+CQE mode RX: n/a  TX: n/a
+
+tx-aggr-max-bytes:	n/a
+tx-aggr-max-frames:	n/a
+tx-aggr-time-usecs	n/a
+
+--- /proc/interrupts row
+ 135:          0          0          0          0          0          0          0    2663694          0          0          0          0          0          0          0          0          0          0          0          0  IR-PCI-MSIX-0000:03:00.0    0-edge      enp3s0
+--- registers
+CPlusCmd     0x20e0  INTT=0  PktCntrDisable=1
+IntrMitigate 0x00a0  rx_timer=10  rx_frames=0 (field 0)  tx_timer=0  tx_frames=0 (field 0)
