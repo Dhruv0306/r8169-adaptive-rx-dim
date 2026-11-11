@@ -36,7 +36,7 @@ Two patches against `v7.2.15`, in `patches/`. Author Dhruv Rakeshbhai Patel, wit
 |---|---|---|
 | F1 | `adaptive-rx on` and `off`, `ethtool -c` after each | Pass. `Adaptive RX` read `off` after load, `on` after `adaptive-rx on`, `off` after `adaptive-rx off`. On the stock module this line reads `n/a` |
 | F2 | Invalid combinations, and use on a chip without support | Not run. No RTL8125 is available and invalid combinations were not tried |
-| F3 | Adaptive off compared with stock | Partial. With adaptive off, `ethtool -c` shows `rx-usecs 0`, `rx-frames 1`, `tx-usecs 0`, `tx-frames 1`. A static `rx-usecs 50` reads back as 50 and `rx-usecs 0` restores the defaults. Stock output was not captured before the swap, so there is no direct diff |
+| F3 | Adaptive off compared with stock | Pass (completed 2026-11-11). With adaptive off, `ethtool -c` shows `rx-usecs 0`, `rx-frames 1`, `tx-usecs 0`, `tx-frames 1`. A static `rx-usecs 50` reads back as 50 and `rx-usecs 0` restores the defaults. The Phase 0 baseline captured the stock output (`Adaptive RX: n/a`, same values) and the registers read the same for both modules (`0x2060`, `0x0000`). Benchmarks of the two modules agree to about 1.3% (Phase 0 results, finding 1) |
 | F4 to F7 | Down/up, speed change, suspend, stress | Not in scope for Phase 1 (Phase 3) |
 | F8 | `checkpatch.pl --strict`, `sparse`, `make W=1` | `W=1`: clean for `r8169_main.c`. `checkpatch --strict --no-tree` on both patches: no `Signed-off-by` (error, to be added with `git commit -s`) and a warning for the `Co-authored-by` trailer. `sparse`: not run |
 
@@ -55,7 +55,7 @@ After the load: the interface came back with link up at 1000 Mbit/s full, and `d
 
 ## Gaps carried forward
 
-- Stock `ethtool -c` output for the F3 comparison.
+- ~~Stock `ethtool -c` output for the F3 comparison~~: closed 2026-11-11, see F3.
 - `sparse` run and the `Signed-off-by` lines.
 - F2 on an unsupported chip.
 
