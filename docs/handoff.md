@@ -1,6 +1,6 @@
 # Handoff: r8169 adaptive receive interrupt moderation
 
-The state of the project as of 2026-11-10. It tells a newcomer (a new chat, or a new reader) what the project is, how the work is meant to be done, and where things stand. It is only for moving context between chats and is not a results log: what each phase did and found is in `docs/results/phase_<number>_<title>.md`, and the phase plan is in `docs/phases.md`. The design is in `plan.md`.
+The state of the project as of 2026-11-11. It tells a newcomer (a new chat, or a new reader) what the project is, how the work is meant to be done, and where things stand. It is only for moving context between chats and is not a results log: what each phase did and found is in `docs/results/phase_<number>_<title>.md`, and the phase plan is in `docs/phases.md`. The design is in `plan.md`.
 
 ## 1. What this is
 
@@ -17,9 +17,9 @@ The change adds an adaptive receive interrupt moderation mode, built on the kern
 | Source checked | Yes, against the `v7.2.15` tag (section 4) |
 | Code written | Phase 1 patches 0001 and 0002 |
 | Built | Phase 1 module, loaded on the test machine |
-| Tested or measured | Phase 1 functional checks only; nothing measured |
+| Tested or measured | Phase 1 functional checks, and the Phase 0 baseline of four configurations on the real link (no adaptive code exists yet) |
 | Repository | https://github.com/Dhruv0306/r8169-adaptive-rx-dim |
-| Phase results | `docs/results/phase_0_environment_and_baseline.md` (in progress), `docs/results/phase_1_plumbing.md` (done) |
+| Phase results | `docs/results/phase_0_environment_and_baseline.md` (done), `docs/results/phase_1_plumbing.md` (done); Phase 2 is next |
 
 ## 3. Intended behaviour
 
@@ -62,12 +62,13 @@ Known from the earlier part of the course project and from the logs the owner su
 | Running kernel | Custom `7.2.15-netquota`, built from `/usr/src/linux-7.2.15` (a tarball, not a git repository, `.config` present, identical to `/boot/config`). It includes the owner's network-quota system call patches |
 | Kernel options seen | `CONFIG_DEBUG_FS=y`, `CONFIG_LOCKDEP=y`; `KMEMLEAK` is not set |
 | `dmesg` | Needs root; use `su -` |
+| Peer machine | Another machine on the same LAN over a gigabit link, running `iperf3 -s` and `netserver` for the benchmarks; ICMP is blocked on this network, so `ping` shows nothing |
 
 The running kernel already contains the network-quota hooks, so the baseline and all later measurements are on the same kernel, which keeps comparisons fair. The hooks are not expected to affect this work.
 
 Measured facts (chip RTL8168h/8111h, link speed, static coalescing support, `DIMLIB=y` with `r8169` a module, `MODULE_SIG_FORCE=y`) are recorded in `docs/results/phase_0_environment_and_baseline.md`.
 
-Still open: no second machine for `iperf3` and `netperf` is available yet (as of 2026-11-10), so the stock-driver baseline is blocked.
+What the baseline showed (details and tables in the Phase 0 results file): the Phase 1 module with adaptive off matches the stock module; bulk TCP at 941 Mbit/s takes only about 2 interrupts per second, so there is almost nothing to moderate; request-response takes 2 interrupts per transaction and any static timer only adds latency (+42 microseconds for 50, +187 for 200); UDP shows fewer NET_RX softirqs with a timer and no loss either way. The all-CPU busy figure was too noisy to use, so later runs use per-CPU columns. A small or negative gain is therefore a likely outcome and is acceptable.
 
 Conventions carried over from the other kernel projects:
 
@@ -101,10 +102,10 @@ If `CONFIG_DIMLIB` is off in the running kernel, the new module cannot be loaded
 
 ## 7. Open items and next steps
 
-1. Finish Phase 0 (see its results file): second machine, stock baseline, the `PktCntrDisable` reading.
-2. Arrange the second machine and the measurement tools.
-3. Take the baseline for the stock driver (the measurement matrix in `plan.md` section 5).
-4. The repository exists; create the first working branch when Phase 2 starts.
+1. Phase 0 is done; its carried-forward items (the `static-0us` check, the Phase 4 workloads and per-CPU measure) are listed at the end of its results file.
+2. Start Phase 2 on a new branch `Dhruv_Patel/<name>`; first run the `static-0us` check.
+3. The second machine and the stock baseline exist; rerun `stock` in Phase 4 with the updated script.
+4. The repository exists on GitHub.
 5. Decide the open design choices: the five-level table and timer unit, whether a frame limit is needed, whether timer-only operation needs `PktCntrDisable` set, and the locking between the DIM work, the ethtool path and the reset task.
 6. Implement in the phase order of `plan.md` section 8.
 
@@ -135,3 +136,4 @@ If `CONFIG_DIMLIB` is off in the running kernel, the new module cannot be loaded
 - The running kernel enforces module signatures (`CONFIG_MODULE_SIG_FORCE=y`): a rebuilt `r8169.ko` must be signed with the key in `/usr/src/linux-7.2.15/certs/` before `insmod`. The recipe is in `docs/results/phase_1_plumbing.md`.
 - `ping` gets no replies on this network while TCP works, so latency probes must use TCP or UDP.
 - The NIC's interrupt is 135 (MSI-X, row `enp3s0` in `/proc/interrupts`). `/sys/class/net/enp3s0/device/irq` says 18, which is wrong for counting NIC interrupts; `scripts/rx_bench.sh` finds the right row by device name.
+- `scripts/rx_bench.sh` runs as root from the repository root, one label per configuration, and refuses to append to a CSV written with an older column layout (the baseline files use the older layout). `scripts/summarize_results.py` reads both layouts.

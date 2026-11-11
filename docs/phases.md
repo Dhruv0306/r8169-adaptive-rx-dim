@@ -100,10 +100,11 @@ Each phase ends with something that builds and loads, so a problem can always be
 4. Level table: first draft with level 0 as timer 0 (no moderation) and four increasing timers. Pick the timer unit from the options in `plan.md` section 4.2. This is a starting guess that Phase 4 will tune.
 5. Decide, from the Phase 0 reading, whether timer-only operation needs `PktCntrDisable`, and implement the answer.
 6. Add a debug aid that is cheap to remove later (for example a trace of level changes under `CONFIG_DEBUG_FS`, which is enabled on this kernel).
+7. Before tuning anything, run the `static-0us` check from the Phase 0 results ("Carried forward", item 1): the "no moderation" level goes through the ethtool path, which sets `PktCntrDisable`, and its behaviour must match the freshly loaded module.
 
 **Files touched.** `r8169_main.c`.
 
-**Tests.** Short manual checks first: with `adaptive-rx on`, run `ping` at light load and a bulk `iperf3`, and watch `ethtool -c` change with the load. Then F1 and F3 again, and F8.
+**Tests.** Short manual checks first: with `adaptive-rx on`, run a single `netperf` TCP_RR stream at light load (`ping` is blocked on this network) and a bulk `iperf3`, and watch `ethtool -c` change with the load. Then F1 and F3 again, and F8.
 
 **Deliverables.** Patch 0003 (counters, sampling, work function, table). `docs/results/phase_2_adaptive_core.md` with the table and unit chosen and why.
 
@@ -146,11 +147,13 @@ Each phase ends with something that builds and loads, so a problem can always be
 **Tasks**
 
 1. Pick the two static values (low and high `rx-usecs`) from the current table.
-2. Run the full matrix from `plan.md` section 5.3 for Stock, Static low, Static high and Adaptive: idle `ping`, request-response, bulk TCP, UDP at several rates including overload, and the stepped load.
-3. Repeat each cell several times. Record mean and spread, not single numbers. Collect `mpstat`, `/proc/interrupts` and `/proc/softirqs` per run.
+2. Run the full matrix from `plan.md` section 5.3 for Stock, Static low, Static high and Adaptive: idle interrupt counts, request-response, bulk TCP, UDP at several rates including overload, and the stepped load.
+3. Repeat each cell several times. Record mean and spread, not single numbers. Collect, per run, the NIC interrupt rate, the NET_RX rate and the busy and softirq share of the CPU that takes the NIC interrupts (the `rx_bench.sh` columns). The all-CPU busy figure cannot separate configurations (Phase 0 results, finding 6).
 4. For the stepped load, sample `ethtool -c` several times a second and plot level against time to show how fast the level follows the load.
 5. Tune the table and the unit from the results. After each change, rerun only the affected workloads, and keep the raw logs of every table version.
 6. Write down any result honestly, including a small or negative gain. NAPI already reduces interrupts under load, so a modest result is a valid outcome.
+7. Add workloads that load the receive path harder than the Phase 0 baseline did: small-packet UDP at a high packet rate, and several parallel TCP_RR streams. The baseline showed about 2 interrupts per second for bulk TCP at line rate and 2 per transaction for request-response, so there is little to reduce with the current workloads.
+8. Rerun `stock` with the updated `scripts/rx_bench.sh` so that every label has the same columns, and record the peer's kernel and NIC in the setup notes.
 
 **Files touched.** The level table in `r8169_main.c`, scripts, `results/`.
 
@@ -195,7 +198,7 @@ Update this table when a phase finishes, and link its results file. Planned date
 
 | Phase | Planned finish | Actual finish | Notes |
 |---|---|---|---|
-| 0 | | | In progress. Machine checks, source reading and register check done; blocked on a second machine for the stock baseline. [Results](results/phase_0_environment_and_baseline.md) |
+| 0 | | 2026-11-11 | Done. Machine facts, source reading and register check, validated benchmark script, and four baseline runs (stock, patched-off, static-50us, static-200us). [Results](results/phase_0_environment_and_baseline.md) |
 | 1 | | 2026-11-10 | Done. Patches 0001 and 0002 built, signed and loaded. [Results](results/phase_1_plumbing.md) |
 | 2 | | | |
 | 3 | | | |

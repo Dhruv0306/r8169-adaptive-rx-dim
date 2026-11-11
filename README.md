@@ -4,7 +4,7 @@ Adaptive receive interrupt moderation for the Linux `r8169` driver (Realtek RTL8
 
 Coursework project for Advanced Operating Systems (CS G623), BITS Pilani Goa. Target kernel: Linux 7.2.15.
 
-> **Status: planning stage.** The design is written and checked against the `v7.2.15` source. No code has been written, built, or measured yet. Everything below under "Planned behaviour" describes the intended result, not a finished feature.
+> **Status:** Phase 0 (environment and baseline) and Phase 1 (plumbing: Kconfig, state and the ethtool flag) are done. The adaptive behaviour itself (Phase 2 onwards) is not written yet, so everything below under "Planned behaviour" describes the intended result, not a finished feature. Phase results are in [`docs/results/`](docs/results/).
 
 ## Why
 
@@ -34,6 +34,16 @@ This project adds an adaptive mode: little or no delay when the link is quiet (l
 | Teardown | `net_dim_work_cancel()` when adaptive mode is turned off or the device goes down, with the locking checked under lockdep |
 
 The full design, including open choices such as the level table and whether timer-only operation needs `PktCntrDisable`, is in [`docs/plan.md`](docs/plan.md). Project context and the checklist of things already verified in the source are in [`docs/handoff.md`](docs/handoff.md).
+
+## Baseline findings so far
+
+Measured on the target machine (RTL8168h at 1 Gbit/s, one peer, 5 runs of 20 seconds per cell; tables in [`docs/results/phase_0_environment_and_baseline.md`](docs/results/phase_0_environment_and_baseline.md)):
+
+- The Phase 1 module with adaptive off matches the stock module to about 1.3% in throughput, latency and interrupt figures.
+- Bulk TCP at 941 Mbit/s takes about 2 interrupts per second with the stock driver, so there is almost nothing for moderation to remove.
+- Request-response takes 2 interrupts per transaction in every configuration, and a static timer only adds latency (+42 microseconds for 50, +187 for 200). The adaptive mode has to stay at its lowest level there.
+- UDP at fixed rates shows fewer NET_RX softirqs with a timer (for example -17% at 600 Mbit/s with 50 microseconds) and no packet loss in either case.
+- A small or negative gain from adaptive moderation is a likely outcome on this link, and the project reports whatever it finds.
 
 ## Scope and limits
 
@@ -99,7 +109,7 @@ On Windows, clone or pull on the Linux machine rather than copying files across,
 docs/        plan.md, phases.md, handoff.md (context for a new chat), locking.md (Phase 3), final report
 docs/results/ one file per phase: phase_<number>_<title>.md
 patches/     git format-patch series against v7.2.15
-scripts/     test and measurement scripts (each starts with an SPDX line)
+scripts/     rx_bench.sh, read_intrmit.sh, summarize_results.py (each starts with an SPDX line)
 results/     raw logs from the baseline and final runs
 ```
 
