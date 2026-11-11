@@ -11,8 +11,9 @@
 # settings: set them (or load the stock or modified module) first, and
 # pass a label that names that configuration.
 #
-# Per run it records the NIC interrupt rate, the NET_RX softirq rate and
-# the CPU busy percentage over the run, plus the workload result. Raw
+# Per run it records the NIC interrupt rate, the NET_RX softirq rate, the
+# CPU busy percentage over all CPUs, the busy and softirq percentages of
+# the one CPU that took the NIC interrupts, and the workload result. Raw
 # tool output is kept next to a summary.csv.
 #
 # usage: rx_bench.sh -l LABEL -p PEER [options]
@@ -102,8 +103,12 @@ done
 OUT="$OUTDIR/$LABEL"
 mkdir -p "$OUT"
 CSV="$OUT/summary.csv"
+HEADER="label,workload,param,run,secs,irq_per_s,net_rx_softirq_per_s,cpu_busy_pct,irq_cpu,irq_cpu_busy_pct,irq_cpu_softirq_pct,status,result"
 if [ ! -s "$CSV" ]; then
-	echo "label,workload,param,run,secs,irq_per_s,net_rx_softirq_per_s,cpu_busy_pct,status,result" > "$CSV"
+	echo "$HEADER" > "$CSV"
+elif [ "$(head -n 1 "$CSV")" != "$HEADER" ]; then
+	echo "$CSV was written by an older version of this script (different columns); use a new label or output directory" >&2
+	exit 1
 fi
 
 # ---- counters -------------------------------------------------------
@@ -121,6 +126,52 @@ cpu_times() {
 	awk '$1 == "cpu" { idle = $5 + $6; t = 0; for (i = 2; i <= 9; i++) t += $i; print t - idle, t }' /proc/stat
 }
 
+# snapshot_cpus FILE: per-CPU interrupt counts of the NIC row ("IRQ ..."),
+# then the per-CPU lines of /proc/stat
+snapshot_cpus() {
+	{
+		awk -v irq="$IRQ:" '$1 == irq { printf "IRQ"; for (i = 2; i <= NF && $i ~ /^[0-9]+$/; i++) printf " %s", $i; print "" }' "$INTERRUPTS_FILE"
+		grep '^cpu[0-9]' /proc/stat
+	} > "$1"
+}
+
+# irq_cpu_stats BEFORE AFTER: "cpu,busy_pct,softirq_pct" for the CPU that
+# took the NIC interrupts during the run. CPU numbers are for one CPU, so
+# 100 means that CPU was fully busy (the all-CPU figure is divided by the
+# number of CPUs and hides this).
+irq_cpu_stats() {
+	python3 - "$1" "$2" <<'PY'
+import sys
+
+def load(path):
+    irq, stat = None, {}
+    for line in open(path):
+        f = line.split()
+        if not f:
+            continue
+        if f[0] == "IRQ":
+            irq = [int(x) for x in f[1:]]
+        elif f[0].startswith("cpu"):
+            stat[int(f[0][3:])] = [int(x) for x in f[1:]]
+    return irq, stat
+
+try:
+    i0, s0 = load(sys.argv[1])
+    i1, s1 = load(sys.argv[2])
+    delta = [b - a for a, b in zip(i0, i1)]
+    if max(delta) > 0:
+        cpu = max(range(len(delta)), key=lambda k: delta[k])
+    else:
+        cpu = max(range(len(i1)), key=lambda k: i1[k])
+    d = [y - x for x, y in zip(s0[cpu], s1[cpu])]
+    total = sum(d[:8])
+    idle = d[3] + d[4]
+    print("%d,%.1f,%.1f" % (cpu, 100.0 * (total - idle) / total, 100.0 * d[6] / total))
+except Exception:
+    print("-,-,-")
+PY
+}
+
 # ---- result parsers -------------------------------------------------
 
 parse_iperf() {
@@ -128,12 +179,13 @@ parse_iperf() {
 import json, sys
 try:
     e = json.load(open(sys.argv[1]))["end"]
-    if "sum_received" in e:
-        print("mbit=%.1f" % (e["sum_received"]["bits_per_second"] / 1e6))
-    else:
-        s = e["sum"]
-        print("mbit=%.1f;loss_pct=%.3f;jitter_ms=%.3f" % (
+    s = e.get("sum", {})
+    if "lost_percent" in s:
+        # UDP (iperf3 3.16 also reports sum_received for UDP, so test this first)
+        print("mbit=%.1f;loss_pct=%.4f;jitter_ms=%.4f" % (
             s["bits_per_second"] / 1e6, s.get("lost_percent", 0), s.get("jitter_ms", 0)))
+    else:
+        print("mbit=%.1f" % (e["sum_received"]["bits_per_second"] / 1e6))
 except Exception:
     print("parse_error")
 PY
@@ -154,8 +206,9 @@ measure() {
 	local workload=$1 param=$2 run=$3 parser=$4
 	shift 4
 	local raw="$OUT/${workload}_${param}_run${run}.txt"
-	local b0 t0 b1 t1 i0 i1 s0 s1 ts0 ts1 rc rates result status
+	local b0 t0 b1 t1 i0 i1 s0 s1 ts0 ts1 rc rates cpustats result status
 
+	snapshot_cpus "$OUT/.snap_before"
 	read -r b0 t0 < <(cpu_times)
 	i0=$(irq_total)
 	s0=$(softirq_net_rx)
@@ -168,6 +221,9 @@ measure() {
 	read -r b1 t1 < <(cpu_times)
 	i1=$(irq_total)
 	s1=$(softirq_net_rx)
+	snapshot_cpus "$OUT/.snap_after"
+	cpustats=$(irq_cpu_stats "$OUT/.snap_before" "$OUT/.snap_after")
+	rm -f "$OUT/.snap_before" "$OUT/.snap_after"
 
 	rates=$(awk -v ts0="$ts0" -v ts1="$ts1" -v i0="$i0" -v i1="$i1" \
 		-v s0="$s0" -v s1="$s1" -v b0="$b0" -v b1="$b1" -v t0="$t0" -v t1="$t1" \
@@ -181,7 +237,7 @@ measure() {
 		status="fail($rc)"
 		result="-"
 	fi
-	echo "$LABEL,$workload,$param,$run,$rates,$status,$result" | tee -a "$CSV"
+	echo "$LABEL,$workload,$param,$run,$rates,$cpustats,$status,$result" | tee -a "$CSV"
 
 	# let the servers on the peer and the NIC settle before the next run
 	sleep 2
