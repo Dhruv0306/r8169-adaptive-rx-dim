@@ -1,6 +1,6 @@
 # Phase-by-phase plan
 
-Detailed plan for adaptive receive interrupt moderation in `r8169` on Linux 7.2.15. The design is in [`plan.md`](plan.md) and the project context in [`handoff.md`](handoff.md). This page turns them into ordered work: what to do in each phase, which files change, what is delivered, and when a phase counts as done.
+Detailed plan for adaptive receive interrupt moderation in `r8169` on Linux 7.2.15. Each remaining phase has a more detailed plan in [`plans/`](plans/) (`plan-<number>-<title>.md`). The design is in [`plan.md`](plan.md) and the project context in [`handoff.md`](handoff.md). This page turns them into ordered work: what to do in each phase, which files change, what is delivered, and when a phase counts as done.
 
 Nothing here has been built or run yet. Commands are proposals and paths are assumptions for the author's machine.
 
@@ -90,6 +90,8 @@ Each phase ends with something that builds and loads, so a problem can always be
 
 ## Phase 2: Adaptive core
 
+**Detailed plan.** [`plans/plan-2-adaptive-core.md`](plans/plan-2-adaptive-core.md).
+
 **Goal.** Make adaptive mode actually move the hardware timer with the load.
 
 **Tasks**
@@ -106,7 +108,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 
 **Tests.** Short manual checks first: with `adaptive-rx on`, run a single `netperf` TCP_RR stream at light load (`ping` is blocked on this network) and a bulk `iperf3`, and watch `ethtool -c` change with the load. Then F1 and F3 again, and F8.
 
-**Deliverables.** Patch 0003 (counters, sampling, work function, table). `docs/results/phase_2_adaptive_core.md` with the table and unit chosen and why.
+**Deliverables.** Patch 0003 (counters, DIM sampling, a work function that only logs, minimal teardown) and patch 0004 (level table, apply to the hardware, ethtool semantics). `docs/results/phase_2_adaptive_core.md` with the table and unit chosen and why.
 
 **Done when.** The level visibly rises under bulk load and falls back at idle, with no kernel warnings, and adaptive-off behaviour is unchanged.
 
@@ -117,6 +119,8 @@ Each phase ends with something that builds and loads, so a problem can always be
 ---
 
 ## Phase 3: Robustness and locking
+
+**Detailed plan.** [`plans/plan-3-robustness.md`](plans/plan-3-robustness.md).
 
 **Goal.** Make adaptive mode survive everything the hardware and the stack do to it.
 
@@ -132,7 +136,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 
 **Tests.** F4 (down then up under adaptive mode), F5 (speed change), F6 (suspend and resume, if supported), F7 (stress loop: traffic running while adaptive mode and link state toggle, and 20 module reloads), F8. Run all with lockdep enabled and read `dmesg` (`su -`) after each.
 
-**Deliverables.** Patch 0004 (re-apply, link change, cancel) and `docs/locking.md`.
+**Deliverables.** Patch 0005 (re-apply after hardware start, link change, idle decay, teardown) and `docs/locking.md`.
 
 **Done when.** F4 to F7 pass with no lockdep report, no oops and no `WARN`, and the level is correct after every hardware restart.
 
@@ -141,6 +145,8 @@ Each phase ends with something that builds and loads, so a problem can always be
 ---
 
 ## Phase 4: Measurement and tuning
+
+**Detailed plan.** [`plans/plan-4-measurement-and-tuning.md`](plans/plan-4-measurement-and-tuning.md).
 
 **Goal.** Measure all four configurations on all workloads and tune the level table from data.
 
@@ -157,7 +163,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 
 **Files touched.** The level table in `r8169_main.c`, scripts, `results/`.
 
-**Deliverables.** Raw logs in `results/`, graphs, a results table, patch 0005 (tuned table) if the table changed.
+**Deliverables.** Raw logs in `results/`, graphs, a results table, patch 0006 (tuned table) if the table changed.
 
 **Done when.** Every cell of the matrix has repeated runs, the table is frozen, and the conclusion (benefit, no benefit, or trade-off) is supported by the numbers.
 
@@ -166,6 +172,8 @@ Each phase ends with something that builds and loads, so a problem can always be
 ---
 
 ## Phase 5: Report and demo
+
+**Detailed plan.** [`plans/plan-5-report-and-demo.md`](plans/plan-5-report-and-demo.md).
 
 **Goal.** Package the work so it can be read, reproduced and shown.
 
@@ -188,9 +196,10 @@ Each phase ends with something that builds and loads, so a problem can always be
 |---|---|---|
 | 0001 | Kconfig `select DIMLIB`, new fields in `struct rtl8169_private` | 1 |
 | 0002 | ethtool `adaptive-rx` flag, no hardware effect | 1 |
-| 0003 | RX counters, DIM sampling, work function, level table | 2 |
-| 0004 | Re-apply after hardware start and link change, cancel on down | 3 |
-| 0005 | Tuned level table (only if tuning changed it) | 4 |
+| 0003 | RX counters, poll-event counter, DIM sampling, work function that only logs the level, minimal teardown | 2 |
+| 0004 | Level table, apply to `IntrMitigate`, ethtool semantics (save and restore of the static settings) | 2 |
+| 0005 | Re-apply after hardware start, link change, idle decay, teardown review | 3 |
+| 0006 | Tuned level table (only if tuning changed it) | 4 |
 
 ## Phase tracker
 
