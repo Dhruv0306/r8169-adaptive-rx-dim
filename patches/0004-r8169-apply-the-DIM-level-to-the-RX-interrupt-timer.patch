@@ -1,0 +1,350 @@
+From 1f41f8c05c94231c45ec6dfe8086f196627aa5a3 Mon Sep 17 00:00:00 2001
+From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
+Date: Fri, 13 Nov 2026 02:24:27 +0000
+Subject: [PATCH 4/4] r8169: apply the DIM level to the RX interrupt timer
+
+Map the five DIM levels to RX timer values of 0, 40, 80, 200 and 400
+microseconds and write the chosen one into the RX timer field of
+IntrMitigate from the DIM work function. Level 0 means no moderation.
+The work function does a read-modify-write of the RX fields only, so the
+TX fields that ethtool may have set are kept, and it never writes
+CPlusCmd. It takes rx_dim_lock and never RTNL.
+
+Adaptive mode is timer only: the RX frame limit is zero and a non-zero
+TX frame limit is refused with -EINVAL and an extack message. The INTT
+unit is chosen on the ethtool path when adaptive mode is turned on, for
+the largest level, so the work function has no need to touch CPlusCmd.
+PktCntrDisable ends up set, as in the existing static timer-only path.
+
+Change what ethtool -C does with the flag, since ethtool sends back the
+values that ethtool -c reported for the live level:
+
+ - off to on: save the static RX settings from the request, reset DIM to
+   level 0 and start adaptive mode;
+ - on to on: ignore rx-usecs and rx-frames in the request, apply the TX
+   settings;
+ - on to off: restore the saved static RX settings, ignoring the RX
+   values in the request.
+
+rtl_get_coalesce() is unchanged and shows the live register value, so
+ethtool -c shows the current DIM level as a timer value.
+
+Co-authored-by: Claude <noreply@anthropic.com>
+---
+ drivers/net/ethernet/realtek/r8169_main.c | 231 ++++++++++++++++------
+ 1 file changed, 174 insertions(+), 57 deletions(-)
+
+diff --git a/drivers/net/ethernet/realtek/r8169_main.c b/drivers/net/ethernet/realtek/r8169_main.c
+index 4ff3f014c..ececcfc14 100644
+--- a/drivers/net/ethernet/realtek/r8169_main.c
++++ b/drivers/net/ethernet/realtek/r8169_main.c
+@@ -782,7 +782,9 @@ struct rtl8169_private {
+ 	u16 rx_dim_events;	/* poll calls that fed DIM, NAPI context only */
+ 	u64 rx_dim_packets;	/* updated from NAPI context only */
+ 	u64 rx_dim_bytes;	/* updated from NAPI context only */
+-	struct mutex rx_dim_lock; /* protects rx_dim_enabled and the DIM work */
++	struct mutex rx_dim_lock; /* flag, saved RX settings, adaptive IntrMitigate writes */
++	u32 rx_static_usecs;	/* static RX settings saved while adaptive */
++	u32 rx_static_frames;
+ };
+ 
+ typedef void (*rtl_generic_fct)(struct rtl8169_private *tp);
+@@ -2094,6 +2096,26 @@ rtl_coalesce_info(struct rtl8169_private *tp)
+ 	return ERR_PTR(-ELNRNG);
+ }
+ 
++/* DIM level to RX timer in microseconds. Level 0 is no moderation. The
++ * hardware timer is only 4 bits wide, so the values are a rough fit; the
++ * largest one decides the INTT unit chosen when adaptive mode is enabled.
++ */
++static const u16 rtl_rx_dim_usecs[] = { 0, 40, 80, 200, 400 };
++
++/* RX timer field value for @level when one hardware unit is @scale ns */
++static u32 rtl_rx_dim_units(u32 scale, u8 level)
++{
++	u32 us;
++
++	BUILD_BUG_ON(ARRAY_SIZE(rtl_rx_dim_usecs) != NET_DIM_PARAMS_NUM_PROFILES);
++
++	us = rtl_rx_dim_usecs[level];
++	if (!us)
++		return 0;
++
++	return clamp(DIV_ROUND_CLOSEST(us * 1000U, scale), 1U, RTL_COALESCE_T_MAX);
++}
++
+ /* Forget what DIM has learnt, so that it starts again from level 0 */
+ static void rtl_rx_dim_reset(struct rtl8169_private *tp)
+ {
+@@ -2108,6 +2130,27 @@ static void rtl_rx_dim_reset(struct rtl8169_private *tp)
+ 	memset(&dim->prev_stats, 0, sizeof(dim->prev_stats));
+ }
+ 
++/* Write the RX timer for @level; the TX fields and the RX frame limit are
++ * kept. Called with rx_dim_lock held. Only IntrMitigate is written, CPlusCmd
++ * stays with the ethtool path.
++ */
++static void rtl_rx_dim_apply(struct rtl8169_private *tp, u8 level)
++{
++	const struct rtl_coalesce_info *ci = rtl_coalesce_info(tp);
++	u16 w;
++
++	if (IS_ERR(ci))
++		return;
++
++	w = RTL_R16(tp, IntrMitigate);
++	w &= ~(RTL_COALESCE_RX_USECS | RTL_COALESCE_RX_FRAMES);
++	w |= FIELD_PREP(RTL_COALESCE_RX_USECS,
++			rtl_rx_dim_units(ci->scale_nsecs[tp->cp_cmd & INTT_MASK],
++					 level));
++	RTL_W16(tp, IntrMitigate, w);
++	rtl_pci_commit(tp);
++}
++
+ /* Runs from the system workqueue after net_dim() chose a new level. It must
+  * never take RTNL, so that net_dim_work_cancel() can be called under it.
+  */
+@@ -2116,33 +2159,16 @@ static void rtl_rx_dim_work(struct work_struct *work)
+ 	struct dim *dim = container_of(work, struct dim, work);
+ 	struct rtl8169_private *tp = container_of(dim, struct rtl8169_private,
+ 						  rx_dim);
++	u8 level = READ_ONCE(dim->profile_ix);
+ 
+ 	mutex_lock(&tp->rx_dim_lock);
+-	if (tp->rx_dim_enabled)
+-		netdev_dbg(tp->dev, "rx dim: level %u\n", dim->profile_ix);
+-	dim->state = DIM_START_MEASURE;
+-	mutex_unlock(&tp->rx_dim_lock);
+-}
+-
+-/* Called under RTNL from rtl_set_coalesce() when the ethtool flag changes */
+-static void rtl_rx_dim_set_enabled(struct rtl8169_private *tp, bool enable)
+-{
+-	if (enable) {
+-		/* NAPI does not touch the DIM state while the flag is off */
+-		rtl_rx_dim_reset(tp);
+-		mutex_lock(&tp->rx_dim_lock);
+-		WRITE_ONCE(tp->rx_dim_enabled, true);
+-		mutex_unlock(&tp->rx_dim_lock);
+-		return;
++	if (tp->rx_dim_enabled) {
++		rtl_rx_dim_apply(tp, level);
++		netdev_dbg(tp->dev, "rx dim: level %u, %u us\n", level,
++			   rtl_rx_dim_usecs[level]);
+ 	}
+-
+-	mutex_lock(&tp->rx_dim_lock);
+-	WRITE_ONCE(tp->rx_dim_enabled, false);
++	dim->state = DIM_START_MEASURE;
+ 	mutex_unlock(&tp->rx_dim_lock);
+-
+-	/* Let a poll that already saw the flag finish, then drop the work */
+-	synchronize_net();
+-	net_dim_work_cancel(&tp->rx_dim);
+ }
+ 
+ static int rtl_get_coalesce(struct net_device *dev,
+@@ -2182,7 +2208,7 @@ static int rtl_get_coalesce(struct net_device *dev,
+ 	c_fr = FIELD_GET(RTL_COALESCE_RX_FRAMES, intrmit);
+ 	ec->rx_max_coalesced_frames = (c_us || c_fr) ? c_fr * 4 : 1;
+ 
+-	ec->use_adaptive_rx_coalesce = tp->rx_dim_enabled;
++	ec->use_adaptive_rx_coalesce = READ_ONCE(tp->rx_dim_enabled);
+ 
+ 	return 0;
+ }
+@@ -2208,17 +2234,74 @@ static int rtl_coalesce_choose_scale(struct rtl8169_private *tp, u32 usec,
+ 	return -ERANGE;
+ }
+ 
++/* Write IntrMitigate and the INTT and PktCntrDisable bits of CPlusCmd. With
++ * @adaptive the RX timer is the current DIM level, the RX frame limit is 0
++ * and the INTT unit is the one that fits the largest level; @rx_us and @rx_fr
++ * are ignored. Nothing is written when an error is returned. Called with
++ * rx_dim_lock held.
++ */
++static int rtl_write_coalesce(struct rtl8169_private *tp, u32 rx_us, u32 rx_fr,
++			      u32 tx_us, u32 tx_fr, bool adaptive)
++{
++	u32 coal_usec_max, units;
++	u16 w = 0, cp01 = 0;
++	int scale;
++
++	coal_usec_max = adaptive ? rtl_rx_dim_usecs[ARRAY_SIZE(rtl_rx_dim_usecs) - 1] :
++				   rx_us;
++	coal_usec_max = max(coal_usec_max, tx_us);
++	scale = rtl_coalesce_choose_scale(tp, coal_usec_max, &cp01);
++	if (scale < 0)
++		return scale;
++
++	/* HW requires time limit to be set if frame limit is set */
++	if ((tx_fr && !tx_us) || (!adaptive && rx_fr && !rx_us))
++		return -EINVAL;
++
++	if (adaptive)
++		rx_fr = 0;
++
++	w |= FIELD_PREP(RTL_COALESCE_TX_FRAMES, DIV_ROUND_UP(tx_fr, 4));
++	w |= FIELD_PREP(RTL_COALESCE_RX_FRAMES, DIV_ROUND_UP(rx_fr, 4));
++
++	units = DIV_ROUND_UP(tx_us * 1000U, scale);
++	w |= FIELD_PREP(RTL_COALESCE_TX_USECS, units);
++	if (adaptive)
++		units = rtl_rx_dim_units(scale, READ_ONCE(tp->rx_dim.profile_ix));
++	else
++		units = DIV_ROUND_UP(rx_us * 1000U, scale);
++	w |= FIELD_PREP(RTL_COALESCE_RX_USECS, units);
++
++	RTL_W16(tp, IntrMitigate, w);
++
++	/* Meaning of PktCntrDisable bit changed from RTL8168e-vl */
++	if (rtl_is_8168evl_up(tp)) {
++		if (!rx_fr && !tx_fr)
++			/* disable packet counter */
++			tp->cp_cmd |= PktCntrDisable;
++		else
++			tp->cp_cmd &= ~PktCntrDisable;
++	}
++
++	tp->cp_cmd = (tp->cp_cmd & ~INTT_MASK) | cp01;
++	RTL_W16(tp, CPlusCmd, tp->cp_cmd);
++	rtl_pci_commit(tp);
++
++	return 0;
++}
++
+ static int rtl_set_coalesce(struct net_device *dev,
+ 			    struct ethtool_coalesce *ec,
+ 			    struct kernel_ethtool_coalesce *kernel_coal,
+ 			    struct netlink_ext_ack *extack)
+ {
+ 	struct rtl8169_private *tp = netdev_priv(dev);
++	bool adaptive = ec->use_adaptive_rx_coalesce;
+ 	u32 tx_fr = ec->tx_max_coalesced_frames;
+ 	u32 rx_fr = ec->rx_max_coalesced_frames;
+-	u32 coal_usec_max, units;
+-	u16 w = 0, cp01 = 0;
+-	int scale;
++	u32 rx_us = ec->rx_coalesce_usecs;
++	u16 cp01;
++	int ret;
+ 
+ 	if (rtl_is_8125(tp))
+ 		return -EOPNOTSUPP;
+@@ -2226,11 +2309,6 @@ static int rtl_set_coalesce(struct net_device *dev,
+ 	if (rx_fr > RTL_COALESCE_FRAME_MAX || tx_fr > RTL_COALESCE_FRAME_MAX)
+ 		return -ERANGE;
+ 
+-	coal_usec_max = max(ec->rx_coalesce_usecs, ec->tx_coalesce_usecs);
+-	scale = rtl_coalesce_choose_scale(tp, coal_usec_max, &cp01);
+-	if (scale < 0)
+-		return scale;
+-
+ 	/* Accept max_frames=1 we returned in rtl_get_coalesce. Accept it
+ 	 * not only when usecs=0 because of e.g. the following scenario:
+ 	 *
+@@ -2246,38 +2324,77 @@ static int rtl_set_coalesce(struct net_device *dev,
+ 	if (tx_fr == 1)
+ 		tx_fr = 0;
+ 
+-	/* HW requires time limit to be set if frame limit is set */
+-	if ((tx_fr && !ec->tx_coalesce_usecs) ||
+-	    (rx_fr && !ec->rx_coalesce_usecs))
+-		return -EINVAL;
++	mutex_lock(&tp->rx_dim_lock);
+ 
+-	w |= FIELD_PREP(RTL_COALESCE_TX_FRAMES, DIV_ROUND_UP(tx_fr, 4));
+-	w |= FIELD_PREP(RTL_COALESCE_RX_FRAMES, DIV_ROUND_UP(rx_fr, 4));
++	if (adaptive) {
++		if (tx_fr) {
++			NL_SET_ERR_MSG_MOD(extack,
++					   "TX frame limit is not supported with adaptive-rx");
++			ret = -EINVAL;
++			goto unlock;
++		}
+ 
+-	units = DIV_ROUND_UP(ec->tx_coalesce_usecs * 1000U, scale);
+-	w |= FIELD_PREP(RTL_COALESCE_TX_USECS, units);
+-	units = DIV_ROUND_UP(ec->rx_coalesce_usecs * 1000U, scale);
+-	w |= FIELD_PREP(RTL_COALESCE_RX_USECS, units);
++		if (!tp->rx_dim_enabled) {
++			/* Off to on: keep the static RX settings, they come
++			 * back when adaptive mode is turned off. They must be
++			 * valid on their own.
++			 */
++			if (rx_fr && !rx_us) {
++				ret = -EINVAL;
++				goto unlock;
++			}
++			ret = rtl_coalesce_choose_scale(tp, rx_us, &cp01);
++			if (ret < 0)
++				goto unlock;
++
++			tp->rx_static_usecs = rx_us;
++			tp->rx_static_frames = rx_fr;
++			/* NAPI leaves DIM alone while the flag is off */
++			rtl_rx_dim_reset(tp);
++		}
+ 
+-	RTL_W16(tp, IntrMitigate, w);
++		/* On to on: rx-usecs and rx-frames in the request are what
++		 * rtl_get_coalesce() reported for the live level, so they are
++		 * ignored. TX settings still apply.
++		 */
++		ret = rtl_write_coalesce(tp, 0, 0, ec->tx_coalesce_usecs, 0, true);
++		if (ret)
++			goto unlock;
+ 
+-	/* Meaning of PktCntrDisable bit changed from RTL8168e-vl */
+-	if (rtl_is_8168evl_up(tp)) {
+-		if (!rx_fr && !tx_fr)
+-			/* disable packet counter */
+-			tp->cp_cmd |= PktCntrDisable;
+-		else
+-			tp->cp_cmd &= ~PktCntrDisable;
++		WRITE_ONCE(tp->rx_dim_enabled, true);
++		goto unlock;
+ 	}
+ 
+-	tp->cp_cmd = (tp->cp_cmd & ~INTT_MASK) | cp01;
+-	RTL_W16(tp, CPlusCmd, tp->cp_cmd);
+-	rtl_pci_commit(tp);
++	if (tp->rx_dim_enabled) {
++		/* On to off: the RX values in the request describe the last
++		 * DIM level, so the saved static settings are restored.
++		 */
++		rx_us = tp->rx_static_usecs;
++		rx_fr = tp->rx_static_frames;
++	}
+ 
+-	if (ec->use_adaptive_rx_coalesce != tp->rx_dim_enabled)
+-		rtl_rx_dim_set_enabled(tp, ec->use_adaptive_rx_coalesce);
++	ret = rtl_write_coalesce(tp, rx_us, rx_fr, ec->tx_coalesce_usecs, tx_fr,
++				 false);
++	if (ret)
++		goto unlock;
+ 
+-	return 0;
++	if (tp->rx_dim_enabled) {
++		WRITE_ONCE(tp->rx_dim_enabled, false);
++		mutex_unlock(&tp->rx_dim_lock);
++
++		/* Let a poll that already saw the flag finish, then drop a
++		 * work item that is still queued. It would find the flag off
++		 * and do nothing, but it must not run after a later re-enable.
++		 */
++		synchronize_net();
++		net_dim_work_cancel(&tp->rx_dim);
++		return 0;
++	}
++
++unlock:
++	mutex_unlock(&tp->rx_dim_lock);
++
++	return ret;
+ }
+ 
+ static void rtl_set_eee_txidle_timer(struct rtl8169_private *tp)
+-- 
+2.43.0
+

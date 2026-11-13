@@ -209,7 +209,7 @@ Update this table when a phase finishes, and link its results file. Planned date
 |---|---|---|---|
 | 0 | | 2026-11-11 | Done. Machine facts, source reading and register check, validated benchmark script, and four baseline runs (stock, patched-off, static-50us, static-200us). [Results](results/phase_0_environment_and_baseline.md) |
 | 1 | | 2026-11-10 | Done. Patches 0001 and 0002 built, signed and loaded. [Results](results/phase_1_plumbing.md) |
-| 2 | | | |
+| 2 | | | In progress. Patches 0003 and 0004 written and built, tests pending. [Results](results/phase_2_adaptive_core.md) |
 | 3 | | | |
 | 4 | | | |
 | 5 | | | |

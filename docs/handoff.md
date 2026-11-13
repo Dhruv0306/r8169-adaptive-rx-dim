@@ -21,7 +21,7 @@ The change adds an adaptive receive interrupt moderation mode, built on the kern
 | Repository | https://github.com/Dhruv0306/r8169-adaptive-rx-dim |
 | Phase results | `docs/results/phase_0_environment_and_baseline.md` (done), `docs/results/phase_1_plumbing.md` (done) |
 | Plans for the remaining phases | `docs/plans/plan-2-adaptive-core.md`, `plan-3-robustness.md`, `plan-4-measurement-and-tuning.md`, `plan-5-report-and-demo.md` |
-| Next | Phase 2, starting with the `static-0us` check |
+| Next | Phase 2: apply 0003 and 0004 on the PC, run `static-0us` and tests T1 to T10 |
 
 ## 3. Intended behaviour (as refined in the phase plans)
 
