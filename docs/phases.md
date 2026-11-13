@@ -102,7 +102,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 4. Level table: first draft with level 0 as timer 0 (no moderation) and four increasing timers. Pick the timer unit from the options in `plan.md` section 4.2. This is a starting guess that Phase 4 will tune.
 5. Decide, from the Phase 0 reading, whether timer-only operation needs `PktCntrDisable`, and implement the answer.
 6. Add a debug aid that is cheap to remove later (for example a trace of level changes under `CONFIG_DEBUG_FS`, which is enabled on this kernel).
-7. Before tuning anything, run the `static-0us` check from the Phase 0 results ("Carried forward", item 1): the "no moderation" level goes through the ethtool path, which sets `PktCntrDisable`, and its behaviour must match the freshly loaded module.
+7. The `static-0us` check ("no moderation" level through the ethtool path, which sets `PktCntrDisable`) was done in Phase 2 and showed no difference from the freshly loaded module; see the Phase 2 results.
 
 **Files touched.** `r8169_main.c`.
 

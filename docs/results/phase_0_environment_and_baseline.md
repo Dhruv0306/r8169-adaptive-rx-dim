@@ -207,6 +207,6 @@ This confirms on the real hardware that a timer-only setting runs with `PktCntrD
 
 ## Carried forward
 
-1. **Level 0 with `PktCntrDisable` set.** The adaptive design will run its "no moderation" level through the ethtool path, which sets `PktCntrDisable`, while a freshly loaded module has it clear. Check that the two behave the same: run `ethtool -C enp3s0 rx-usecs 0 rx-frames 1`, confirm `0x20e0` and `0x0000` with `scripts/read_intrmit.sh enp3s0`, then `bash scripts/rx_bench.sh -l static-0us -p <peer> -w "rr tcp"` and compare with `stock`. Do this at the start of Phase 2.
+1. **Level 0 with `PktCntrDisable` set.** Done at the start of Phase 2, see [`phase_2_adaptive_core.md`](phase_2_adaptive_core.md). Result: no visible difference, so level 0 may go through the ethtool path.
 2. **Phase 4 workloads and measure.** Add small-packet high-rate UDP and parallel TCP_RR, use the per-CPU columns, and rerun `stock` with the updated script so every label has the same columns. Record the peer's kernel and NIC.
 3. **Optional:** confirm the cause of the flat 2000 interrupts per second in UDP (for example with a different `iperf3` pacing setting), and look at the `RX dropped` counter before and after a run.
