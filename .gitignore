@@ -51,3 +51,6 @@ core.*
 # Scratch space
 tmp/
 scratch/
+
+# switch to private git repo for sensitive data doc
+switch_to_private.md
