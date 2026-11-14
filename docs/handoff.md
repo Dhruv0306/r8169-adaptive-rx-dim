@@ -16,18 +16,18 @@ The change adds an adaptive receive interrupt moderation mode, built on the kern
 | Design | `docs/plan.md`, refined while writing the phase plans (section 3) |
 | Source checked | Yes, against the `v7.2.15` tag (section 4) |
 | Code written | Phase 1 patches 0001 and 0002 (Kconfig and state, ethtool flag with no hardware effect) and Phase 2 patches 0003 to 0005 (DIM sampling and logging, level table and ethtool semantics, single-packet guard), applied to the PC's tree, built, signed and loaded |
-| Planned series | 0003 counters and DIM sampling, 0004 level table and ethtool semantics, 0005 single-packet guard (Phase 2); 0006 re-apply, link change, idle decay, teardown (Phase 3); 0007 tuned table (Phase 4, only if the table changes) |
+| Patch series | Done: 0001 Kconfig and state, 0002 ethtool flag (Phase 1); 0003 counters and DIM sampling, 0004 level table and ethtool semantics, 0005 single-packet guard (Phase 2). Planned: 0006 re-apply, link change, idle decay, teardown (Phase 3); 0007 tuned table (Phase 4, only if the table changes) |
 | Measured | The Phase 0 baseline of four configurations on the real link, and the Phase 2 tests: with adaptive mode on, request-response is within noise of adaptive off, 600M UDP needs 5x fewer NET_RX runs with no loss, bulk TCP is unchanged |
-| Repository | https://github.com/Dhruv0306/r8169-adaptive-rx-dim |
+| Repository | https://github.com/Dhruv0306/r8169-adaptive-rx-dim. Phases 0 to 2 are merged into `main` (pull request #1, merge commit `0975339`); the merged branch `Dhruv_Patel/r8169-adaptive-core` is kept as a backup |
 | Phase results | `docs/results/phase_0_environment_and_baseline.md` (done), `docs/results/phase_1_plumbing.md` (done), `docs/results/phase_2_adaptive_core.md` (done) |
 | Plans for the remaining phases | `docs/plans/plan-2-adaptive-core.md`, `plan-3-robustness.md`, `plan-4-measurement-and-tuning.md`, `plan-5-report-and-demo.md` |
-| Next | Phase 3 (`docs/plans/plan-3-robustness.md`): patch 0006, re-apply after hardware start, link change, idle decay, teardown and locking |
+| Next | Phase 3 (`docs/plans/plan-3-robustness.md`) on a new branch `Dhruv_Patel/r8169-robustness`: patch 0006, re-apply after hardware start, link change, idle decay, teardown and locking |
 
 ## 3. Intended behaviour (as refined in the phase plans)
 
 - `select DIMLIB` in the `R8169` Kconfig entry; `struct rtl8169_private` holds a `struct dim`, an adaptive flag, driver-owned RX packet and byte counters, a poll-event counter and a mutex `rx_dim_lock`.
-- An event is one call of `rtl8169_poll()`. `net_dim()` is called at the end of every poll that received packets (not only when `napi_complete_done()` succeeds, because at line rate the poll may not complete).
-- DIM chooses one of five levels. The driver's table maps them to timer values in microseconds, first guess `{0, 40, 80, 200, 400}`, converted to timer units for the current link speed, timer-only (frame limit 0, `PktCntrDisable` set as in the stock timer-only path). Phase 4 tunes the table.
+- An event is one call of `rtl8169_poll()` that received packets. `net_dim()` is called right after `rtl_rx()` in every such poll (not only when `napi_complete_done()` succeeds, because at line rate the poll may not complete), with one exception added in patch 0005: while the level is 0, a poll that received a single packet is not shown to DIM, so request-response traffic stays at level 0. Above level 0 every poll is shown, so the level can always step back down.
+- DIM chooses one of five levels. The driver's table maps them to timer values in microseconds, `{0, 40, 80, 200, 400}` (implemented in patch 0004, unchanged since; at 1 Gbit/s the 400 us top level needs the 40 us unit, `INTT` 1), converted to timer units for the current link speed, timer-only (frame limit 0, `PktCntrDisable` set as in the stock timer-only path). Phase 4 tunes the table.
 - The `INTT` unit bits are chosen once, on the ethtool path when adaptive mode is turned on, for the largest level. The work function does a read-modify-write of the RX bits of `IntrMitigate` only, takes only `rx_dim_lock` (never RTNL), and never writes `CPlusCmd`.
 - The level is written again at the end of `rtl_hw_start()` (before `rtl_irq_enable()`), a separate work item recomputes the timer units after a link-speed change, a 200 ms delayed work sets the level to 0 when no polls happened (DIM never runs without packets), and the work items are cancelled in `rtl8169_down()` after `rtl8169_cleanup()`.
 - ethtool: `ethtool -c` shows the live register value. Off to on saves the static RX settings and starts DIM at level 0; on to on ignores `rx-usecs` and `rx-frames` in the request (they are echoes of the live level); on to off restores the saved static RX settings. While adaptive is on a non-zero TX frame limit is refused.
@@ -74,6 +74,8 @@ Measured facts (chip RTL8168h/8111h, link speed, static coalescing support, `DIM
 
 What the baseline showed (details and tables in the Phase 0 results file): the Phase 1 module with adaptive off matches the stock module; bulk TCP at 941 Mbit/s takes only about 2 interrupts per second, so there is almost nothing to moderate; request-response takes 2 interrupts per transaction and any static timer only adds latency (+42 microseconds for 50, +187 for 200); UDP shows fewer NET_RX softirqs with a timer and no loss either way. The all-CPU busy figure was too noisy to use, so later runs use per-CPU columns. A small or negative gain is therefore a likely outcome and is acceptable.
 
+What Phase 2 showed (tables in the Phase 2 results file, same-session runs of 5): with adaptive mode on, request-response is within noise of adaptive off (9508 against 9340 transactions per second) once patch 0005 is in; without it the same traffic lost 5.8%, because DIM keeps leaving level 0 on statistics noise and every excursion costs the replies the full 40 us timer. Under 600M UDP the level rises to 200 to 400 us and the receive softirq runs per second fall from about 20900 to about 3900 with no loss; at 900M they fall from about 36800 to about 21500 to 25900, but some runs dwell at low levels. Bulk TCP is unchanged. After the traffic stops the level stays at the top (no idle decay yet). The "no moderation" level through the ethtool path (`PktCntrDisable` set) behaves like a freshly loaded module.
+
 Conventions carried over from the other kernel projects:
 
 - **Branches:** `Dhruv_Patel/<feature or fix name>`; keep merged branches.
@@ -96,12 +98,14 @@ scripts/sign-file sha512 certs/signing_key.pem certs/signing_key.x509 /root/r816
 rmmod r8169 && insmod /root/r8169-new-signed.ko
 ```
 
-The way back to the stock module is `rmmod r8169; modprobe r8169`. The benchmarks are described in the Phase 0 results (`scripts/rx_bench.sh`, `scripts/summarize_results.py`, `scripts/read_intrmit.sh`). Phase 2 adds `scripts/build_sign_load.sh` and `scripts/sample_level.sh`.
+The way back to the stock module is `rmmod r8169; modprobe r8169`. The benchmarks are described in the Phase 0 results (`scripts/rx_bench.sh`, `scripts/summarize_results.py`, `scripts/read_intrmit.sh`).
+
+Since Phase 2 the build, sign and swap steps are one script, `bash scripts/build_sign_load.sh [kernel tree]` (builds with `W=1`, refuses a vermagic mismatch, signs, `rmmod`, `insmod`), and `scripts/sample_level.sh <dev>` prints the live RX timer level as CSV. The patches of the series are applied in order, each after a dry run: `patch -p1 --dry-run < patches/0003-*.patch && patch -p1 < patches/0003-*.patch`, and so on. A dry run of a later patch on a tree without the earlier ones fails, which is not an error in the patch. After the build, check `grep -E "warning|error" /root/r8169-build.log` and run `perl scripts/checkpatch.pl --strict --no-tree <patch>` from the kernel tree (only the missing `Signed-off-by` and the `Co-authored-by` signature are expected).
 
 ## 7. Open items and next steps
 
-1. Phase 2 (`docs/plans/plan-2-adaptive-core.md`): the `static-0us` check is done (no difference, see the Phase 2 results); apply patches 0003 and 0004 on a branch `Dhruv_Patel/<name>` and run the tests.
-2. Phase 3, 4 and 5 follow their plans. Rerun `stock` in Phase 4 with the updated benchmark script so every label has the per-CPU columns.
+1. Phase 3 (`docs/plans/plan-3-robustness.md`, patch 0006): the gaps found in Phase 2 that it must close are the reset task and resume (which zero `IntrMitigate` while DIM keeps its level), a link-speed change (the timer unit changes, the level is not re-applied), the missing idle decay (T7: the level stayed at 400 us after the load stopped), and the locking between the hardware start path, the ethtool path and the work function. Test it with the console ready.
+2. Phase 4 and 5 follow their plans. Rerun `stock` in Phase 4 with the updated benchmark script so every label has the per-CPU columns. Phase 4 must also look at two things recorded in the Phase 2 results: 900M UDP sometimes dwells at low levels (possible cause, not verified: below level 1 the single-packet guard counts fewer events than above it), and DIM changes level about 17 times per second under steady load. The all-CPU and IRQ-CPU columns are noisy, so repeat them.
 3. Not known yet: the course deadline and the required format of the report and demo (Phase 5), and the peer machine's kernel and NIC, which the meta files do not record.
 
 ## 8. Decisions and why
@@ -114,8 +118,8 @@ The way back to the stock module is `rmmod r8169; modprobe r8169`. The benchmark
 - Own five-level table: the library's default values assume much larger counts than this hardware's 4-bit fields can hold.
 - Events are poll calls and DIM is called on every poll, not only at completion, so it still runs at line rate.
 - A mutex and the lock order RTNL, PHY lock, `rx_dim_lock`, so the work can be cancelled under RTNL without a deadlock (same pattern as `virtio_net`).
-- Idle decay is needed because DIM is driven only by polls: after a burst the level would stay high and delay the first packets of sparse traffic.
-- Phase 2 is split into two patches (counters and a logging work function first, hardware writes second) so DIM's behaviour is visible before any register is touched.
+- Idle decay is needed because DIM is driven only by polls: after a burst the level would stay high and delay the first packets of sparse traffic. Confirmed in Phase 2 (T7): the level stayed at 400 us after the load stopped.
+- Phase 2 is split into patches (counters and a logging work function first, hardware writes second) so DIM's behaviour is visible before any register is touched. Patch 0005 was added after test T5 failed: a smaller first step (5 us unit, top level capped at 75 us) would have given up much of the UDP gain, accepting the loss was against the plan's own criterion, so single-packet polls are kept out of DIM at level 0.
 - Report any result, including a small or negative gain. The baseline shows NAPI already keeps interrupts very low under bulk load, so a large gain is not expected.
 
 ## 9. Known limitations
@@ -123,7 +127,8 @@ The way back to the stock module is `rmmod r8169; modprobe r8169`. The benchmark
 - The hardware timer is only 4 bits wide and its unit is shared by RX and TX, so the five levels are a rough fit.
 - RTL8125 (2.5G) chips are not supported by the driver's coalescing code and are out of scope.
 - Results depend on the chip variant of this machine, one peer and one link speed, and are not generalized.
-- The hardware start path clears `IntrMitigate`, so after a reset or resume the level must be written again by the new code.
+- The hardware start path clears `IntrMitigate`, so after a reset or resume the level must be written again by the new code (Phase 3).
+- Adaptive mode is off by default and only changes behaviour when the user turns it on; the single-packet guard is a heuristic on top of the stock DIM algorithm, and the 900M behaviour above is not understood yet.
 
 ## 10. Gotchas
 
@@ -137,3 +142,9 @@ The way back to the stock module is `rmmod r8169; modprobe r8169`. The benchmark
 - The NIC's interrupt is 135 (MSI-X, row `enp3s0` in `/proc/interrupts`). `/sys/class/net/enp3s0/device/irq` says 18, which is wrong for counting NIC interrupts; `scripts/rx_bench.sh` finds the right row by device name.
 - `scripts/rx_bench.sh` runs as root from the repository root, one label per configuration, and refuses to append to a CSV written with an older column layout (the baseline files use the older layout). `scripts/summarize_results.py` reads both layouts.
 - In PowerShell, `git am` does not expand `*`; give the patch file names explicitly.
+- `ethtool -C` that sets the values already in force is a no-op: ethtool never calls the driver, so a check such as `rx-usecs 0 rx-frames 1` on an unchanged device tests nothing. Change a value first (for example `rx-usecs 50`), then set the one under test.
+- The `INTT` bits survive a module reload (probe reads `CPlusCmd & CPCMD_MASK`, which includes them), while `PktCntrDisable` does not. A reboot clears both. So a module reload while adaptive mode is on leaves the chip at `INTT` 1 (`0x2061` once idle) until a static `ethtool -C` changes it; turning adaptive mode off through ethtool restores the static settings, including `INTT`.
+- Compare configurations only within one session: `stock` and `stock-again` differed by 3.3% in transactions per second between sessions, more than the 1.6% spread inside one.
+- `scripts/rx_bench.sh` takes `-l <label> -p <peer> -w "rr tcp udp" -u "600M 900M"`; export `PEER` first (an empty `PEER` makes it exit with "cannot reach iperf3 on -w"). Dynamic debug for the level log: `echo 'module r8169 +p' > /sys/kernel/debug/dynamic_debug/control`.
+- Run `git` as the normal user. Running benchmarks or `git pull` as root leaves root-owned files in the repository and later `git switch` or `git pull` fail with "unable to unlink ... Permission denied"; fix with `chown -R aoscsg623:aoscsg623` on the whole repository (including `.git`) after any root session.
+- `git am` of a repo-update patch that contains a `.patch` file prints "space before tab" and whitespace warnings; they are about the embedded diff lines and are harmless.
