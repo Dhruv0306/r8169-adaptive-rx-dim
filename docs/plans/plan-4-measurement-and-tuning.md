@@ -8,7 +8,7 @@ Machine tags: **[Claude]** work in the chat, **[PC]** machine under test (root, 
 
 Measure whether adaptive moderation helps, with the same rigour as the Phase 0 baseline, tune the level table from the data, freeze it, and report the result whatever it is. A small or negative gain is an acceptable outcome (plan.md, section 5.5).
 
-Patch series: 0006, only if tuning changes the table.
+Patch series: 0007, only if tuning changes the table.
 
 ## 2. What the Phase 0 baseline already says (so the matrix is aimed well)
 
@@ -64,7 +64,7 @@ Objective, in order: (1) `rr` and `rrp` transactions per second and latency with
 2. **[PEER] and [PC] Prepare.** Same preparation as Phase 0 (servers, firewall, address). Load the final signed module. Record the peer's kernel and NIC in the setup notes.
 3. **[PC] Calibration run** (3.3) and **[Claude]** picks the rates from the CSV.
 4. **[PC] Exploratory matrix** with 5 runs per cell: `bash scripts/run_matrix.sh` (arguments defined in step 1). Paste or push the results; **[Claude]** summarises with `scripts/summarize_results.py`.
-5. **[Claude] and [PC] Tuning rounds** (3.5). Each round: Claude proposes a table change as a patch (0006 candidates), the PC rebuilds and reruns the affected cells.
+5. **[Claude] and [PC] Tuning rounds** (3.5). Each round: Claude proposes a table change as a patch (0007 candidates), the PC rebuilds and reruns the affected cells.
 6. **[PC] Final matrix** on the frozen build: 10 runs per cell, interleaved, with `stock` at both ends.
 7. **[PC] Stepped-load run** with the sampler for the demo and the figure: `bash scripts/stepped_load.sh -p $PEER` (at the console).
 8. **[Claude] Graphs and tables.** Generate the figures from the CSV files (script `scripts/plot_results.py`, matplotlib): interrupts per second and softirq share versus offered load for each configuration; request-response latency and transactions per second; the level trace of the stepped load. Write the results file.
@@ -83,7 +83,7 @@ Objective, in order: (1) `rr` and `rrp` transactions per second and latency with
 - Every cell of the matrix has at least 10 runs for the final comparison (5 for exploratory ones), with mean, spread and run count, and all raw logs are in the repository.
 - The level table is frozen, with every earlier version and its data kept, and the final build was measured as it is reported.
 - The conclusion is stated as the data gives it: benefit, no benefit or trade-off, with the numbers, the workloads where it holds and the limits (one chip variant, one peer, one link speed).
-- Patch 0006 exists if the table changed.
+- Patch 0007 exists if the table changed.
 
 ## 7. Risks and fallbacks
 

@@ -1,6 +1,6 @@
 # Plan for Phase 2: Adaptive core
 
-Status: not started. Depends on Phase 0 and Phase 1 (done). High-level summary: [`../phases.md`](../phases.md), Phase 2. Results go in `docs/results/phase_2_adaptive_core.md`.
+Status: done 2026-11-14 (patches 0003 to 0005).
 
 Machine tags used below: **[Claude]** work done in the chat, **[PC]** the machine under test (root shell, at the console), **[PEER]** the second machine, **[repo]** the project repository. Set `PEER=<peer address>` in every PC terminal first.
 
@@ -88,5 +88,5 @@ Status and date; patch table (0003, 0004) with what each changes; build and load
 ## 9. Open questions to settle during the phase
 
 - Is the first table right? Check the level distribution in T4 to T6 before Phase 4 tunes it.
-- Does the `static-0us` check change level 0?
+- Does the `static-0us` check change level 0? Answered: no (0.5% difference, inside the spread); see the Phase 2 results file.
 - Is `ethtool -c` showing the live level confusing enough to prefer reporting the saved static values and exposing the live level through the sampler only?

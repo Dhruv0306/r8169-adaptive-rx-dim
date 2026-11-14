@@ -124,7 +124,7 @@ Six phases, each ending with something that builds and loads. Full detail (tasks
 | 1. Plumbing | `select DIMLIB`, new struct fields, `adaptive-rx` flag in ethtool, no hardware effect | Patches 0001 and 0002 | The flag is accepted and reported, and the driver behaves exactly like stock |
 | 2. Adaptive core | RX counters, DIM sampling in `rtl8169_poll()`, work function writing `IntrMitigate`, first level table | Patch 0003 | The level rises under bulk load and falls at idle, with no warnings |
 | 3. Robustness | Re-apply after hardware start and link change, cancel on down, locking review under lockdep | Patch 0004, `docs/locking.md` | Down/up, speed change, resume and a stress loop pass with no lockdep report or oops |
-| 4. Measurement and tuning | Four configurations across all workloads, repeated runs, table tuned from data | Raw logs, graphs, patch 0005 if the table changed | Every cell has repeated runs and the conclusion matches the numbers |
+| 4. Measurement and tuning | Four configurations across all workloads, repeated runs, table tuned from data | Raw logs, graphs, patch 0007 if the table changed | Every cell has repeated runs and the conclusion matches the numbers |
 | 5. Report and demo | Final patch series, report, demo on the real machine | `patches/`, report, demo script | A clean tree plus the patches builds, loads and runs the demo |
 
 Each remaining phase has a detailed plan in [`docs/plans/`](docs/plans/). Results of each phase are recorded in `docs/results/phase_<number>_<title>.md` (see [phase 0](docs/results/phase_0_environment_and_baseline.md) and [phase 1](docs/results/phase_1_plumbing.md)). Dates are left open until the course deadline is known; a tracker table is at the end of `docs/phases.md`.

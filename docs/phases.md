@@ -102,7 +102,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 4. Level table: first draft with level 0 as timer 0 (no moderation) and four increasing timers. Pick the timer unit from the options in `plan.md` section 4.2. This is a starting guess that Phase 4 will tune.
 5. Decide, from the Phase 0 reading, whether timer-only operation needs `PktCntrDisable`, and implement the answer.
 6. Add a debug aid that is cheap to remove later (for example a trace of level changes under `CONFIG_DEBUG_FS`, which is enabled on this kernel).
-7. Before tuning anything, run the `static-0us` check from the Phase 0 results ("Carried forward", item 1): the "no moderation" level goes through the ethtool path, which sets `PktCntrDisable`, and its behaviour must match the freshly loaded module.
+7. The `static-0us` check ("no moderation" level through the ethtool path, which sets `PktCntrDisable`) was done in Phase 2 and showed no difference from the freshly loaded module; see the Phase 2 results.
 
 **Files touched.** `r8169_main.c`.
 
@@ -136,7 +136,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 
 **Tests.** F4 (down then up under adaptive mode), F5 (speed change), F6 (suspend and resume, if supported), F7 (stress loop: traffic running while adaptive mode and link state toggle, and 20 module reloads), F8. Run all with lockdep enabled and read `dmesg` (`su -`) after each.
 
-**Deliverables.** Patch 0005 (re-apply after hardware start, link change, idle decay, teardown) and `docs/locking.md`.
+**Deliverables.** Patch 0006 (re-apply after hardware start, link change, idle decay, teardown) and `docs/locking.md`.
 
 **Done when.** F4 to F7 pass with no lockdep report, no oops and no `WARN`, and the level is correct after every hardware restart.
 
@@ -163,7 +163,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 
 **Files touched.** The level table in `r8169_main.c`, scripts, `results/`.
 
-**Deliverables.** Raw logs in `results/`, graphs, a results table, patch 0006 (tuned table) if the table changed.
+**Deliverables.** Raw logs in `results/`, graphs, a results table, patch 0007 (tuned table) if the table changed.
 
 **Done when.** Every cell of the matrix has repeated runs, the table is frozen, and the conclusion (benefit, no benefit, or trade-off) is supported by the numbers.
 
@@ -198,8 +198,9 @@ Each phase ends with something that builds and loads, so a problem can always be
 | 0002 | ethtool `adaptive-rx` flag, no hardware effect | 1 |
 | 0003 | RX counters, poll-event counter, DIM sampling, work function that only logs the level, minimal teardown | 2 |
 | 0004 | Level table, apply to `IntrMitigate`, ethtool semantics (save and restore of the static settings) | 2 |
-| 0005 | Re-apply after hardware start, link change, idle decay, teardown review | 3 |
-| 0006 | Tuned level table (only if tuning changed it) | 4 |
+| 0005 | Keep single-packet traffic at DIM level 0 (fix for T5) | 2 |
+| 0006 | Re-apply after hardware start, link change, idle decay, teardown review | 3 |
+| 0007 | Tuned level table (only if tuning changed it) | 4 |
 
 ## Phase tracker
 
@@ -209,7 +210,7 @@ Update this table when a phase finishes, and link its results file. Planned date
 |---|---|---|---|
 | 0 | | 2026-11-11 | Done. Machine facts, source reading and register check, validated benchmark script, and four baseline runs (stock, patched-off, static-50us, static-200us). [Results](results/phase_0_environment_and_baseline.md) |
 | 1 | | 2026-11-10 | Done. Patches 0001 and 0002 built, signed and loaded. [Results](results/phase_1_plumbing.md) |
-| 2 | | | |
+| 2 | | 2026-11-14 | Done. Patches 0003, 0004 and 0005 built, signed and loaded; T1 to T11 pass (T5 needed the single-packet guard, patch 0005). Open item for Phase 4: 900M UDP dwells at low levels in some runs. [Results](results/phase_2_adaptive_core.md) |
 | 3 | | | |
 | 4 | | | |
 | 5 | | | |

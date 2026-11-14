@@ -12,7 +12,7 @@ No new features and no new measurements, except re-measuring if the final series
 
 ## 2. Inputs
 
-- Final patches 0001 to 0006 (0006 only if tuning changed the table), built and measured in Phase 4.
+- Final patches 0001 to 0007 (0007 only if tuning changed the table), built and measured in Phase 4.
 - `docs/results/phase_0` to `phase_4`, `docs/locking.md`, raw logs in `results/`.
 - The course requirements for the report and the demo (format, length, date, who watches the demo). These are not known yet; ask the professor or read the course page before step 2.
 

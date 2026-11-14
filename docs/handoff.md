@@ -1,6 +1,6 @@
 # Handoff: r8169 adaptive receive interrupt moderation
 
-The state of the project as of 2026-11-11. It tells a newcomer (a new chat, or a new reader) what the project is, how the work is meant to be done, and where things stand. It is only for moving context between chats and is not a results log: what each phase did and found is in `docs/results/phase_<number>_<title>.md`, the phase summary is in `docs/phases.md`, and the detailed plan for each remaining phase is in `docs/plans/plan-<number>-<title>.md`. The original design is in `docs/plan.md`.
+The state of the project as of 2026-11-14. It tells a newcomer (a new chat, or a new reader) what the project is, how the work is meant to be done, and where things stand. It is only for moving context between chats and is not a results log: what each phase did and found is in `docs/results/phase_<number>_<title>.md`, the phase summary is in `docs/phases.md`, and the detailed plan for each remaining phase is in `docs/plans/plan-<number>-<title>.md`. The original design is in `docs/plan.md`.
 
 ## 1. What this is
 
@@ -15,13 +15,13 @@ The change adds an adaptive receive interrupt moderation mode, built on the kern
 | Professor's decision | He reviewed the idea and replied that it looks good |
 | Design | `docs/plan.md`, refined while writing the phase plans (section 3) |
 | Source checked | Yes, against the `v7.2.15` tag (section 4) |
-| Code written | Phase 1 patches 0001 and 0002 (Kconfig and state, ethtool flag with no hardware effect), applied to the PC's tree, built, signed and loaded |
-| Planned series | 0003 counters and DIM sampling, 0004 level table and ethtool semantics (Phase 2); 0005 re-apply, link change, idle decay, teardown (Phase 3); 0006 tuned table (Phase 4, only if the table changes) |
-| Measured | The Phase 0 baseline of four configurations on the real link; no adaptive code exists yet |
+| Code written | Phase 1 patches 0001 and 0002 (Kconfig and state, ethtool flag with no hardware effect) and Phase 2 patches 0003 to 0005 (DIM sampling and logging, level table and ethtool semantics, single-packet guard), applied to the PC's tree, built, signed and loaded |
+| Planned series | 0003 counters and DIM sampling, 0004 level table and ethtool semantics, 0005 single-packet guard (Phase 2); 0006 re-apply, link change, idle decay, teardown (Phase 3); 0007 tuned table (Phase 4, only if the table changes) |
+| Measured | The Phase 0 baseline of four configurations on the real link, and the Phase 2 tests: with adaptive mode on, request-response is within noise of adaptive off, 600M UDP needs 5x fewer NET_RX runs with no loss, bulk TCP is unchanged |
 | Repository | https://github.com/Dhruv0306/r8169-adaptive-rx-dim |
-| Phase results | `docs/results/phase_0_environment_and_baseline.md` (done), `docs/results/phase_1_plumbing.md` (done) |
+| Phase results | `docs/results/phase_0_environment_and_baseline.md` (done), `docs/results/phase_1_plumbing.md` (done), `docs/results/phase_2_adaptive_core.md` (done) |
 | Plans for the remaining phases | `docs/plans/plan-2-adaptive-core.md`, `plan-3-robustness.md`, `plan-4-measurement-and-tuning.md`, `plan-5-report-and-demo.md` |
-| Next | Phase 2, starting with the `static-0us` check |
+| Next | Phase 3 (`docs/plans/plan-3-robustness.md`): patch 0006, re-apply after hardware start, link change, idle decay, teardown and locking |
 
 ## 3. Intended behaviour (as refined in the phase plans)
 
@@ -100,7 +100,7 @@ The way back to the stock module is `rmmod r8169; modprobe r8169`. The benchmark
 
 ## 7. Open items and next steps
 
-1. Phase 2 (`docs/plans/plan-2-adaptive-core.md`): run the `static-0us` check first (commands at the end of the Phase 0 results file), then patches 0003 and 0004 on a branch `Dhruv_Patel/<name>`.
+1. Phase 2 (`docs/plans/plan-2-adaptive-core.md`): the `static-0us` check is done (no difference, see the Phase 2 results); apply patches 0003 and 0004 on a branch `Dhruv_Patel/<name>` and run the tests.
 2. Phase 3, 4 and 5 follow their plans. Rerun `stock` in Phase 4 with the updated benchmark script so every label has the per-CPU columns.
 3. Not known yet: the course deadline and the required format of the report and demo (Phase 5), and the peer machine's kernel and NIC, which the meta files do not record.
 

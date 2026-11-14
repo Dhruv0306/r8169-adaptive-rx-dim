@@ -1,0 +1,199 @@
+From 3611676aee04334d35fe73e78484885da4b03b3d Mon Sep 17 00:00:00 2001
+From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
+Date: Fri, 13 Nov 2026 02:22:54 +0000
+Subject: [PATCH 3/4] r8169: sample RX traffic for DIM and log the chosen level
+
+Count received packets and bytes in rtl_rx() and feed the generic DIM
+library from rtl8169_poll() when the ethtool adaptive-rx flag is set.
+One DIM event is one poll call that received packets. DIM is called
+after every such poll, and not only when napi_complete_done() succeeds,
+because at line rate the poll may keep running without completing.
+
+The work function that DIM schedules when it picks a new level only
+logs the level with netdev_dbg() and restarts the measurement. It takes
+only the new rx_dim_lock mutex and never RTNL, so that
+net_dim_work_cancel() can be called with RTNL held. Nothing is written
+to the hardware yet, so the interrupt moderation registers are not
+changed by this patch.
+
+Enabling the flag resets the DIM state to level 0 before the poll
+function may touch it. Disabling it waits for polls in flight and
+cancels the work. rtl8169_down() cancels the work after
+rtl8169_cleanup(), when NAPI is disabled and cannot schedule it again,
+and resets DIM to level 0, which is what the hardware start path leaves
+in IntrMitigate.
+
+Co-authored-by: Claude <noreply@anthropic.com>
+---
+ drivers/net/ethernet/realtek/r8169_main.c | 92 ++++++++++++++++++++++-
+ 1 file changed, 90 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/realtek/r8169_main.c b/drivers/net/ethernet/realtek/r8169_main.c
+index 5a0ded5a8..4ff3f014c 100644
+--- a/drivers/net/ethernet/realtek/r8169_main.c
++++ b/drivers/net/ethernet/realtek/r8169_main.c
+@@ -778,9 +778,11 @@ struct rtl8169_private {
+ 
+ 	/* Adaptive RX interrupt moderation (DIM) */
+ 	struct dim rx_dim;
+-	bool rx_dim_enabled;	/* ethtool adaptive-rx, changed under RTNL */
++	bool rx_dim_enabled;	/* ethtool adaptive-rx, written under rx_dim_lock */
++	u16 rx_dim_events;	/* poll calls that fed DIM, NAPI context only */
+ 	u64 rx_dim_packets;	/* updated from NAPI context only */
+ 	u64 rx_dim_bytes;	/* updated from NAPI context only */
++	struct mutex rx_dim_lock; /* protects rx_dim_enabled and the DIM work */
+ };
+ 
+ typedef void (*rtl_generic_fct)(struct rtl8169_private *tp);
+@@ -2092,6 +2094,57 @@ rtl_coalesce_info(struct rtl8169_private *tp)
+ 	return ERR_PTR(-ELNRNG);
+ }
+ 
++/* Forget what DIM has learnt, so that it starts again from level 0 */
++static void rtl_rx_dim_reset(struct rtl8169_private *tp)
++{
++	struct dim *dim = &tp->rx_dim;
++
++	dim->state = DIM_START_MEASURE;
++	dim->tune_state = DIM_PARKING_ON_TOP;
++	dim->profile_ix = 0;
++	dim->steps_right = 0;
++	dim->steps_left = 0;
++	dim->tired = 0;
++	memset(&dim->prev_stats, 0, sizeof(dim->prev_stats));
++}
++
++/* Runs from the system workqueue after net_dim() chose a new level. It must
++ * never take RTNL, so that net_dim_work_cancel() can be called under it.
++ */
++static void rtl_rx_dim_work(struct work_struct *work)
++{
++	struct dim *dim = container_of(work, struct dim, work);
++	struct rtl8169_private *tp = container_of(dim, struct rtl8169_private,
++						  rx_dim);
++
++	mutex_lock(&tp->rx_dim_lock);
++	if (tp->rx_dim_enabled)
++		netdev_dbg(tp->dev, "rx dim: level %u\n", dim->profile_ix);
++	dim->state = DIM_START_MEASURE;
++	mutex_unlock(&tp->rx_dim_lock);
++}
++
++/* Called under RTNL from rtl_set_coalesce() when the ethtool flag changes */
++static void rtl_rx_dim_set_enabled(struct rtl8169_private *tp, bool enable)
++{
++	if (enable) {
++		/* NAPI does not touch the DIM state while the flag is off */
++		rtl_rx_dim_reset(tp);
++		mutex_lock(&tp->rx_dim_lock);
++		WRITE_ONCE(tp->rx_dim_enabled, true);
++		mutex_unlock(&tp->rx_dim_lock);
++		return;
++	}
++
++	mutex_lock(&tp->rx_dim_lock);
++	WRITE_ONCE(tp->rx_dim_enabled, false);
++	mutex_unlock(&tp->rx_dim_lock);
++
++	/* Let a poll that already saw the flag finish, then drop the work */
++	synchronize_net();
++	net_dim_work_cancel(&tp->rx_dim);
++}
++
+ static int rtl_get_coalesce(struct net_device *dev,
+ 			    struct ethtool_coalesce *ec,
+ 			    struct kernel_ethtool_coalesce *kernel_coal,
+@@ -2221,7 +2274,8 @@ static int rtl_set_coalesce(struct net_device *dev,
+ 	RTL_W16(tp, CPlusCmd, tp->cp_cmd);
+ 	rtl_pci_commit(tp);
+ 
+-	tp->rx_dim_enabled = ec->use_adaptive_rx_coalesce;
++	if (ec->use_adaptive_rx_coalesce != tp->rx_dim_enabled)
++		rtl_rx_dim_set_enabled(tp, ec->use_adaptive_rx_coalesce);
+ 
+ 	return 0;
+ }
+@@ -4783,7 +4837,9 @@ static inline void rtl8169_rx_csum(struct sk_buff *skb, u32 opts1)
+ static int rtl_rx(struct net_device *dev, struct rtl8169_private *tp, int budget)
+ {
+ 	struct device *d = tp_to_dev(tp);
++	u64 bytes = 0;
+ 	int count;
++	int pkts = 0;
+ 
+ 	for (count = 0; count < budget; count++, tp->cur_rx++) {
+ 		unsigned int pkt_size, entry = tp->cur_rx % NUM_RX_DESC;
+@@ -4859,10 +4915,16 @@ static int rtl_rx(struct net_device *dev, struct rtl8169_private *tp, int budget
+ 		napi_gro_receive(&tp->napi, skb);
+ 
+ 		dev_sw_netstats_rx_add(dev, pkt_size);
++		pkts++;
++		bytes += pkt_size;
+ release_descriptor:
+ 		rtl8169_mark_to_asic(desc);
+ 	}
+ 
++	/* Read only from rtl8169_poll(), the same NAPI context */
++	tp->rx_dim_packets += pkts;
++	tp->rx_dim_bytes += bytes;
++
+ 	return count;
+ }
+ 
+@@ -4924,6 +4986,15 @@ static void rtl_task(struct work_struct *work)
+ 	}
+ }
+ 
++static void rtl_rx_dim_update(struct rtl8169_private *tp)
++{
++	struct dim_sample sample = {};
++
++	dim_update_sample(++tp->rx_dim_events, tp->rx_dim_packets,
++			  tp->rx_dim_bytes, &sample);
++	net_dim(&tp->rx_dim, &sample);
++}
++
+ static int rtl8169_poll(struct napi_struct *napi, int budget)
+ {
+ 	struct rtl8169_private *tp = container_of(napi, struct rtl8169_private, napi);
+@@ -4934,6 +5005,13 @@ static int rtl8169_poll(struct napi_struct *napi, int budget)
+ 
+ 	work_done = rtl_rx(dev, tp, budget);
+ 
++	/* One event is one poll that received packets. DIM is fed here, and
++	 * not only when the poll completes, so that it keeps running at line
++	 * rate where the poll may never complete.
++	 */
++	if (work_done && READ_ONCE(tp->rx_dim_enabled))
++		rtl_rx_dim_update(tp);
++
+ 	if (work_done < budget && napi_complete_done(napi, work_done))
+ 		rtl_irq_enable(tp);
+ 
+@@ -5031,6 +5109,13 @@ static void rtl8169_down(struct rtl8169_private *tp)
+ 	rtl_pci_commit(tp);
+ 
+ 	rtl8169_cleanup(tp);
++
++	/* NAPI is disabled now, so nothing can schedule the DIM work again.
++	 * The hardware start clears IntrMitigate, so DIM starts from level 0.
++	 */
++	net_dim_work_cancel(&tp->rx_dim);
++	rtl_rx_dim_reset(tp);
++
+ 	rtl_disable_exit_l1(tp);
+ 	rtl_prepare_power_down(tp);
+ 
+@@ -5641,6 +5726,9 @@ static int rtl_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 
+ 	raw_spin_lock_init(&tp->mac_ocp_lock);
+ 	mutex_init(&tp->led_lock);
++	mutex_init(&tp->rx_dim_lock);
++	INIT_WORK(&tp->rx_dim.work, rtl_rx_dim_work);
++	tp->rx_dim.mode = DIM_CQ_PERIOD_MODE_START_FROM_EQE;
+ 
+ 	/* Get the *optional* external "ether_clk" used on some boards */
+ 	tp->clk = devm_clk_get_optional_enabled(&pdev->dev, "ether_clk");
+-- 
+2.43.0
+

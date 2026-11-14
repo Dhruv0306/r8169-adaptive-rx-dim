@@ -8,7 +8,7 @@ Machine tags: **[Claude]** work in the chat, **[PC]** machine under test (root, 
 
 Make adaptive mode correct in every situation the hardware and the stack put it in: hardware restarts, link speed changes, interface down and up, suspend and resume, module unload, idle after load, and concurrent ethtool changes. Write the locking rules down and check them with lockdep.
 
-Patch series: 0005 (re-apply, link change, idle decay, teardown, locking). The locking analysis is a document, not code.
+Patch series: 0006 (re-apply, link change, idle decay, teardown, locking). The locking analysis is a document, not code.
 
 Not in scope: new levels or tuning (Phase 4), TX moderation, RTL8125.
 
@@ -36,7 +36,7 @@ Not in scope: new levels or tuning (Phase 4), TX moderation, RTL8125.
 ## 4. Work steps
 
 1. **[Claude] Read the code paths again against Phase 2's final code** and write `docs/locking.md` first: every function that touches `IntrMitigate`, `cp_cmd`, `rx_dim_enabled` or the DIM state, which context it runs in (hard IRQ, softirq, workqueue, RTNL, PHY lock), and the lock order of D6.
-2. **[Claude] Write patch 0005** (D1 to D5) and the test hook patch (D7). Deliver as patch files, tested with `patch -p1` on the series so far.
+2. **[Claude] Write patch 0006** (D1 to D5) and the test hook patch (D7). Deliver as patch files, tested with `patch -p1` on the series so far.
 3. **[PC] Apply, build, sign, load** with `scripts/build_sign_load.sh` (Phase 2).
 4. **[PC] Run the tests of section 5 in order**, reading `dmesg` after each. Keep the console open; a stuck state can take the only network link down.
 5. **[PC] Run the stress test** of F7 for at least 30 minutes.
@@ -64,7 +64,7 @@ Start each test with `ethtool -C enp3s0 adaptive-rx on`, and use `bash scripts/r
 
 - F4 to F7 and F9 to F11 pass with no lockdep report, oops or `WARN`, and the level is right after every hardware restart.
 - `docs/locking.md` exists, states the lock order and which context runs each function, and was checked against the final patch.
-- Patch 0005 builds with no warning from `r8169_main.c` and applies on the series with `patch -p1`.
+- Patch 0006 builds with no warning from `r8169_main.c` and applies on the series with `patch -p1`.
 - The test hook is not part of the series.
 
 ## 7. Risks and fallbacks
@@ -79,4 +79,4 @@ Start each test with `ethtool -C enp3s0 adaptive-rx on`, and use `bash scripts/r
 
 ## 8. Results file outline (`docs/results/phase_3_robustness.md`)
 
-Status and date; patch 0005 and what it changes; decisions D1 to D7 with changes from this plan; each test F4 to F11 with the commands run and the outcome; lockdep and `dmesg` findings; bugs found and fixed during the phase; known limits (for example the `INTT` after a speed change); carried-forward items for Phase 4.
+Status and date; patch 0006 and what it changes; decisions D1 to D7 with changes from this plan; each test F4 to F11 with the commands run and the outcome; lockdep and `dmesg` findings; bugs found and fixed during the phase; known limits (for example the `INTT` after a speed change); carried-forward items for Phase 4.
