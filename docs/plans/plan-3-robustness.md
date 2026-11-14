@@ -1,6 +1,6 @@
 # Plan for Phase 3: Robustness and locking
 
-Status: not started. Depends on Phase 2. High-level summary: [`../phases.md`](../phases.md), Phase 3. Results go in `docs/results/phase_3_robustness.md`, and the locking analysis in `docs/locking.md`.
+Status: in progress (2026-11-14). Patch 0006 and the test hook are written, built clean at `W=1` and checked with `checkpatch`; `docs/locking.md` is written; the tests of section 5 have not been run on the PC yet. Depends on Phase 2. High-level summary: [`../phases.md`](../phases.md), Phase 3. Results go in `docs/results/phase_3_robustness.md`, and the locking analysis in `docs/locking.md`.
 
 Machine tags: **[Claude]** work in the chat, **[PC]** machine under test (root, at the console), **[PEER]** second machine, **[repo]** project repository. Set `PEER=<peer address>` first.
 
