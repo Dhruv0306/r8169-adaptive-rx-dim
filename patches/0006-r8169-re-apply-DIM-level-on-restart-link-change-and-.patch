@@ -1,0 +1,278 @@
+From a4755f1f0532672a56c7ba2566c3d58dd79a3834 Mon Sep 17 00:00:00 2001
+From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
+Date: Sat, 14 Nov 2026 12:06:06 +0000
+Subject: [PATCH] r8169: re-apply DIM level on restart, link change and idle
+
+Adaptive RX moderation only writes IntrMitigate when DIM picks a new
+level, so several events leave the hardware and DIM disagreeing:
+
+ - rtl_hw_start() ends with IntrMitigate = 0. After a reset task
+   (transmit timeout, PCI error) DIM still holds its level while the
+   timer is off, and a timer-less NIC is not what the level means.
+ - A link speed change alters the length of one timer unit, so the
+   same field value gives a different delay.
+ - DIM runs only when packets arrive, so after a burst the level stays
+   high and delays the first packets of sparse traffic.
+
+Write the current level at the end of rtl_hw_start(), just before the
+interrupts are enabled. This covers open, resume and both reset causes
+with one call. A reset keeps the level, since the load is probably the
+same; close and suspend still put DIM back to level 0 in
+rtl8169_down().
+
+Queue a work item from r8169_phylink_handler() when the link comes up
+and write the level again with the unit of the new speed. The handler
+runs with the PHY lock held, so it only queues the work, and the work
+takes only rx_dim_lock. INTT is left alone, so CPlusCmd keeps its two
+writers, the ethtool path and rtl_hw_start(). A level that is shorter
+than half a unit at the new speed now rounds to no moderation instead
+of being rounded up to a whole unit.
+
+Add a delayed work that runs every 200 ms while the level is above 0.
+When no poll happened since the previous tick it resets DIM and writes
+level 0.
+
+Cancel the decay and link work items in rtl8169_down(), after NAPI is
+disabled, and when adaptive mode is turned off. Nothing waits for them
+while holding rx_dim_lock, and they never take RTNL or the PHY lock, so
+the lock order stays RTNL, PHY lock, rx_dim_lock.
+
+Co-authored-by: Claude <noreply@anthropic.com>
+---
+ drivers/net/ethernet/realtek/r8169_main.c | 143 +++++++++++++++++++---
+ 1 file changed, 128 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/net/ethernet/realtek/r8169_main.c b/drivers/net/ethernet/realtek/r8169_main.c
+index b32193bc5..7723abbf0 100644
+--- a/drivers/net/ethernet/realtek/r8169_main.c
++++ b/drivers/net/ethernet/realtek/r8169_main.c
+@@ -785,6 +785,9 @@ struct rtl8169_private {
+ 	struct mutex rx_dim_lock; /* flag, saved RX settings, adaptive IntrMitigate writes */
+ 	u32 rx_static_usecs;	/* static RX settings saved while adaptive */
+ 	u32 rx_static_frames;
++	struct delayed_work rx_dim_decay; /* drops the level when the traffic stops */
++	struct work_struct rx_dim_link_work; /* writes the level again after a speed change */
++	u16 rx_dim_decay_events; /* rx_dim_events at the last decay tick, under rx_dim_lock */
+ };
+ 
+ typedef void (*rtl_generic_fct)(struct rtl8169_private *tp);
+@@ -2102,18 +2105,18 @@ rtl_coalesce_info(struct rtl8169_private *tp)
+  */
+ static const u16 rtl_rx_dim_usecs[] = { 0, 40, 80, 200, 400 };
+ 
+-/* RX timer field value for @level when one hardware unit is @scale ns */
++/* RX timer field value for @level when one hardware unit is @scale ns. A
++ * level that is shorter than half a unit gives 0, which is no moderation: it
++ * only happens after a speed change to a slower link, where the unit chosen
++ * for 1 Gbit/s is far longer than the level, and a timer rounded up to one
++ * whole unit would delay the packets much more than the level asks for.
++ */
+ static u32 rtl_rx_dim_units(u32 scale, u8 level)
+ {
+-	u32 us;
+-
+ 	BUILD_BUG_ON(ARRAY_SIZE(rtl_rx_dim_usecs) != NET_DIM_PARAMS_NUM_PROFILES);
+ 
+-	us = rtl_rx_dim_usecs[level];
+-	if (!us)
+-		return 0;
+-
+-	return clamp(DIV_ROUND_CLOSEST(us * 1000U, scale), 1U, RTL_COALESCE_T_MAX);
++	return min(DIV_ROUND_CLOSEST(rtl_rx_dim_usecs[level] * 1000U, scale),
++		   RTL_COALESCE_T_MAX);
+ }
+ 
+ /* Forget what DIM has learnt, so that it starts again from level 0 */
+@@ -2151,6 +2154,99 @@ static void rtl_rx_dim_apply(struct rtl8169_private *tp, u8 level)
+ 	rtl_pci_commit(tp);
+ }
+ 
++/* How often the decay work looks for traffic, in milliseconds */
++#define RTL_RX_DIM_DECAY_MS	200
++
++/* Start watching for idle while the level is above 0. Called with rx_dim_lock
++ * held. A tick that finds no poll since the previous one drops the level.
++ */
++static void rtl_rx_dim_arm_decay(struct rtl8169_private *tp)
++{
++	if (!READ_ONCE(tp->rx_dim.profile_ix) ||
++	    delayed_work_pending(&tp->rx_dim_decay))
++		return;
++
++	tp->rx_dim_decay_events = READ_ONCE(tp->rx_dim_events);
++	schedule_delayed_work(&tp->rx_dim_decay,
++			      msecs_to_jiffies(RTL_RX_DIM_DECAY_MS));
++}
++
++/* DIM only runs when packets arrive, so after a burst the level would stay
++ * where it is and delay the first packets of sparse traffic. This work goes
++ * back to level 0 when a whole period passed without a poll. Like the other
++ * work items it takes only rx_dim_lock. profile_ix may be written by
++ * net_dim() in NAPI context at the same moment; then the work queued by
++ * net_dim() writes the level DIM chose last, so the register and DIM agree
++ * again after that work ran.
++ */
++static void rtl_rx_dim_decay_work(struct work_struct *work)
++{
++	struct rtl8169_private *tp = container_of(to_delayed_work(work),
++						  struct rtl8169_private,
++						  rx_dim_decay);
++	u16 events = READ_ONCE(tp->rx_dim_events);
++
++	mutex_lock(&tp->rx_dim_lock);
++	if (!tp->rx_dim_enabled || !READ_ONCE(tp->rx_dim.profile_ix))
++		goto unlock;
++
++	if (events != tp->rx_dim_decay_events) {
++		tp->rx_dim_decay_events = events;
++		schedule_delayed_work(&tp->rx_dim_decay,
++				      msecs_to_jiffies(RTL_RX_DIM_DECAY_MS));
++		goto unlock;
++	}
++
++	rtl_rx_dim_reset(tp);
++	rtl_rx_dim_apply(tp, 0);
++	netdev_dbg(tp->dev, "rx dim: idle, level 0\n");
++unlock:
++	mutex_unlock(&tp->rx_dim_lock);
++}
++
++/* The link speed changed, and with it the length of a timer unit. INTT stays
++ * as it is, so that the ethtool path and rtl_hw_start() remain the only
++ * writers of CPlusCmd, and the level is converted again with the new unit.
++ * Queued by r8169_phylink_handler(), which runs with the PHY lock held, so
++ * this is a separate work item that takes only rx_dim_lock.
++ */
++static void rtl_rx_dim_link_work(struct work_struct *work)
++{
++	struct rtl8169_private *tp = container_of(work, struct rtl8169_private,
++						  rx_dim_link_work);
++	u8 level;
++
++	mutex_lock(&tp->rx_dim_lock);
++	if (tp->rx_dim_enabled) {
++		level = READ_ONCE(tp->rx_dim.profile_ix);
++		rtl_rx_dim_apply(tp, level);
++		netdev_dbg(tp->dev, "rx dim: link change, level %u rewritten\n",
++			   level);
++	}
++	mutex_unlock(&tp->rx_dim_lock);
++}
++
++/* Called at the end of rtl_hw_start(), before the interrupts are enabled.
++ * The chip-specific start has just written IntrMitigate = 0, so the level DIM
++ * holds would otherwise not be in the hardware: after a reset task (transmit
++ * timeout, PCI error) that level is still the right one, and after open or
++ * resume rtl8169_down() has put DIM back to level 0. CPlusCmd (INTT and
++ * PktCntrDisable) is written from tp->cp_cmd at the top of rtl_hw_start() and
++ * is already right. Takes only rx_dim_lock, so it can run with or without
++ * RTNL.
++ */
++static void rtl_rx_dim_restore(struct rtl8169_private *tp)
++{
++	mutex_lock(&tp->rx_dim_lock);
++	if (tp->rx_dim_enabled) {
++		/* The poll counters go on from where they were */
++		tp->rx_dim.state = DIM_START_MEASURE;
++		rtl_rx_dim_apply(tp, READ_ONCE(tp->rx_dim.profile_ix));
++		rtl_rx_dim_arm_decay(tp);
++	}
++	mutex_unlock(&tp->rx_dim_lock);
++}
++
+ /* Runs from the system workqueue after net_dim() chose a new level. It must
+  * never take RTNL, so that net_dim_work_cancel() can be called under it.
+  */
+@@ -2164,6 +2260,7 @@ static void rtl_rx_dim_work(struct work_struct *work)
+ 	mutex_lock(&tp->rx_dim_lock);
+ 	if (tp->rx_dim_enabled) {
+ 		rtl_rx_dim_apply(tp, level);
++		rtl_rx_dim_arm_decay(tp);
+ 		netdev_dbg(tp->dev, "rx dim: level %u, %u us\n", level,
+ 			   rtl_rx_dim_usecs[level]);
+ 	}
+@@ -2382,12 +2479,15 @@ static int rtl_set_coalesce(struct net_device *dev,
+ 		WRITE_ONCE(tp->rx_dim_enabled, false);
+ 		mutex_unlock(&tp->rx_dim_lock);
+ 
+-		/* Let a poll that already saw the flag finish, then drop a
+-		 * work item that is still queued. It would find the flag off
+-		 * and do nothing, but it must not run after a later re-enable.
++		/* Let a poll that already saw the flag finish, then drop the
++		 * work items that are still queued. They would find the flag
++		 * off and do nothing, but they must not run after a later
++		 * re-enable.
+ 		 */
+ 		synchronize_net();
+ 		net_dim_work_cancel(&tp->rx_dim);
++		cancel_delayed_work_sync(&tp->rx_dim_decay);
++		cancel_work_sync(&tp->rx_dim_link_work);
+ 		return 0;
+ 	}
+ 
+@@ -4316,6 +4416,7 @@ static void rtl_hw_start(struct  rtl8169_private *tp)
+ 	rtl_set_tx_config_registers(tp);
+ 	rtl_set_rx_config_features(tp, tp->dev->features);
+ 	rtl_set_rx_mode(tp->dev);
++	rtl_rx_dim_restore(tp);
+ 	rtl_irq_enable(tp);
+ }
+ 
+@@ -5109,14 +5210,15 @@ static void rtl_task(struct work_struct *work)
+  * that. Such a poll is not shown to DIM, which then never leaves level 0 for
+  * it. Above level 0 every poll counts, so that DIM can always step back down,
+  * for example when bulk traffic is followed by request-response traffic.
+- * profile_ix is only changed by net_dim() here in NAPI context, and by the
+- * reset while the ethtool flag is off.
++ * profile_ix is changed by net_dim() here in NAPI context, by the reset while
++ * the ethtool flag is off, and by the decay work, which only sets it to 0
++ * when no poll happened for a whole period.
+  */
+ static void rtl_rx_dim_update(struct rtl8169_private *tp, int pkts)
+ {
+ 	struct dim_sample sample = {};
+ 
+-	if (pkts < 2 && !tp->rx_dim.profile_ix)
++	if (pkts < 2 && !READ_ONCE(tp->rx_dim.profile_ix))
+ 		return;
+ 
+ 	dim_update_sample(++tp->rx_dim_events, tp->rx_dim_packets,
+@@ -5190,6 +5292,11 @@ static void r8169_phylink_handler(struct net_device *ndev)
+ 	if (netif_carrier_ok(ndev)) {
+ 		rtl_link_chg_patch(tp);
+ 		rtl_enable_tx_lpi(tp, tp->phydev->enable_tx_lpi);
++		/* A new speed changes the timer unit. This runs with the PHY
++		 * lock held, so only queue the work.
++		 */
++		if (READ_ONCE(tp->rx_dim_enabled))
++			schedule_work(&tp->rx_dim_link_work);
+ 		pm_request_resume(d);
+ 	} else {
+ 		pm_runtime_idle(d);
+@@ -5240,9 +5347,13 @@ static void rtl8169_down(struct rtl8169_private *tp)
+ 	rtl8169_cleanup(tp);
+ 
+ 	/* NAPI is disabled now, so nothing can schedule the DIM work again.
+-	 * The hardware start clears IntrMitigate, so DIM starts from level 0.
++	 * The decay and link work items take only rx_dim_lock, which nothing
++	 * holds here, so waiting for them under RTNL is safe. The hardware
++	 * start clears IntrMitigate, so DIM starts from level 0.
+ 	 */
+ 	net_dim_work_cancel(&tp->rx_dim);
++	cancel_delayed_work_sync(&tp->rx_dim_decay);
++	cancel_work_sync(&tp->rx_dim_link_work);
+ 	rtl_rx_dim_reset(tp);
+ 
+ 	rtl_disable_exit_l1(tp);
+@@ -5857,6 +5968,8 @@ static int rtl_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 	mutex_init(&tp->led_lock);
+ 	mutex_init(&tp->rx_dim_lock);
+ 	INIT_WORK(&tp->rx_dim.work, rtl_rx_dim_work);
++	INIT_DELAYED_WORK(&tp->rx_dim_decay, rtl_rx_dim_decay_work);
++	INIT_WORK(&tp->rx_dim_link_work, rtl_rx_dim_link_work);
+ 	tp->rx_dim.mode = DIM_CQ_PERIOD_MODE_START_FROM_EQE;
+ 
+ 	/* Get the *optional* external "ether_clk" used on some boards */
+-- 
+2.43.0
+

@@ -1,0 +1,74 @@
+From 126f25dd93ed9bf6ceefe8784c07920055f296dd Mon Sep 17 00:00:00 2001
+From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
+Date: Sat, 14 Nov 2026 12:06:28 +0000
+Subject: [PATCH] r8169: add a debugfs hook to force the reset task (test only)
+
+Phase 3 has to check that the DIM level is written again after the
+reset task, which a transmit timeout or a PCI error runs and which
+cannot be triggered on demand. A write to
+/sys/kernel/debug/r8169_force_reset schedules the same reset.
+
+This is a test aid and is not part of the patch series. It applies on
+top of patches 0001 to 0006.
+
+Co-authored-by: Claude <noreply@anthropic.com>
+---
+ drivers/net/ethernet/realtek/r8169_main.c | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/drivers/net/ethernet/realtek/r8169_main.c b/drivers/net/ethernet/realtek/r8169_main.c
+index 7723abbf0..8fd547dd8 100644
+--- a/drivers/net/ethernet/realtek/r8169_main.c
++++ b/drivers/net/ethernet/realtek/r8169_main.c
+@@ -30,6 +30,7 @@
+ #include <linux/ipv6.h>
+ #include <linux/unaligned.h>
+ #include <linux/dim.h>
++#include <linux/debugfs.h>
+ #include <net/ip6_checksum.h>
+ #include <net/netdev_queues.h>
+ #include <net/phy/realtek_phy.h>
+@@ -5327,6 +5328,22 @@ static int r8169_phy_connect(struct rtl8169_private *tp)
+ 	return 0;
+ }
+ 
++/* TEST ONLY, not part of the series: a write to
++ * /sys/kernel/debug/r8169_force_reset runs the reset task, the same path as
++ * a transmit timeout or a PCI error, which cannot be triggered on demand.
++ */
++static struct dentry *rtl_force_reset_dentry;
++
++static int rtl_force_reset_set(void *data, u64 val)
++{
++	struct rtl8169_private *tp = data;
++
++	rtl_schedule_task(tp, RTL_FLAG_TASK_RESET_PENDING);
++
++	return 0;
++}
++DEFINE_DEBUGFS_ATTRIBUTE(rtl_force_reset_fops, NULL, rtl_force_reset_set, "%llu\n");
++
+ static void rtl8169_down(struct rtl8169_private *tp)
+ {
+ 	disable_work_sync(&tp->wk.work);
+@@ -5621,6 +5638,8 @@ static void rtl_remove_one(struct pci_dev *pdev)
+ 
+ 	disable_work_sync(&tp->wk.work);
+ 
++	debugfs_remove(rtl_force_reset_dentry);
++
+ 	if (IS_ENABLED(CONFIG_R8169_LEDS))
+ 		r8169_remove_leds(tp->leds);
+ 
+@@ -6058,6 +6077,8 @@ static int rtl_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 	tp->irq = pci_irq_vector(pdev, 0);
+ 
+ 	INIT_WORK(&tp->wk.work, rtl_task);
++	rtl_force_reset_dentry = debugfs_create_file_unsafe("r8169_force_reset", 0200, NULL,
++							    tp, &rtl_force_reset_fops);
+ 	disable_work(&tp->wk.work);
+ 
+ 	rtl_init_mac_address(tp);
+-- 
+2.43.0
+
