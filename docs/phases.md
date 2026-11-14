@@ -136,7 +136,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 
 **Tests.** F4 (down then up under adaptive mode), F5 (speed change), F6 (suspend and resume, if supported), F7 (stress loop: traffic running while adaptive mode and link state toggle, and 20 module reloads), F8. Run all with lockdep enabled and read `dmesg` (`su -`) after each.
 
-**Deliverables.** Patch 0005 (re-apply after hardware start, link change, idle decay, teardown) and `docs/locking.md`.
+**Deliverables.** Patch 0006 (re-apply after hardware start, link change, idle decay, teardown) and `docs/locking.md`.
 
 **Done when.** F4 to F7 pass with no lockdep report, no oops and no `WARN`, and the level is correct after every hardware restart.
 
@@ -163,7 +163,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 
 **Files touched.** The level table in `r8169_main.c`, scripts, `results/`.
 
-**Deliverables.** Raw logs in `results/`, graphs, a results table, patch 0006 (tuned table) if the table changed.
+**Deliverables.** Raw logs in `results/`, graphs, a results table, patch 0007 (tuned table) if the table changed.
 
 **Done when.** Every cell of the matrix has repeated runs, the table is frozen, and the conclusion (benefit, no benefit, or trade-off) is supported by the numbers.
 
@@ -198,8 +198,9 @@ Each phase ends with something that builds and loads, so a problem can always be
 | 0002 | ethtool `adaptive-rx` flag, no hardware effect | 1 |
 | 0003 | RX counters, poll-event counter, DIM sampling, work function that only logs the level, minimal teardown | 2 |
 | 0004 | Level table, apply to `IntrMitigate`, ethtool semantics (save and restore of the static settings) | 2 |
-| 0005 | Re-apply after hardware start, link change, idle decay, teardown review | 3 |
-| 0006 | Tuned level table (only if tuning changed it) | 4 |
+| 0005 | Keep single-packet traffic at DIM level 0 (fix for T5) | 2 |
+| 0006 | Re-apply after hardware start, link change, idle decay, teardown review | 3 |
+| 0007 | Tuned level table (only if tuning changed it) | 4 |
 
 ## Phase tracker
 
@@ -209,7 +210,7 @@ Update this table when a phase finishes, and link its results file. Planned date
 |---|---|---|---|
 | 0 | | 2026-11-11 | Done. Machine facts, source reading and register check, validated benchmark script, and four baseline runs (stock, patched-off, static-50us, static-200us). [Results](results/phase_0_environment_and_baseline.md) |
 | 1 | | 2026-11-10 | Done. Patches 0001 and 0002 built, signed and loaded. [Results](results/phase_1_plumbing.md) |
-| 2 | | | In progress. Patches 0003 and 0004 loaded and tested; T1 to T4 and T6 to T10 pass, T5 fails by 0.8 points (-5.8%), decision on the fix pending. [Results](results/phase_2_adaptive_core.md) |
+| 2 | | | In progress. Patches 0003 and 0004 loaded and tested; T1 to T4 and T6 to T10 pass, T5 failed by 0.8 points (-5.8%); fix is patch 0005 (single-packet guard), retest pending. [Results](results/phase_2_adaptive_core.md) |
 | 3 | | | |
 | 4 | | | |
 | 5 | | | |

@@ -16,12 +16,12 @@ The change adds an adaptive receive interrupt moderation mode, built on the kern
 | Design | `docs/plan.md`, refined while writing the phase plans (section 3) |
 | Source checked | Yes, against the `v7.2.15` tag (section 4) |
 | Code written | Phase 1 patches 0001 and 0002 (Kconfig and state, ethtool flag with no hardware effect), applied to the PC's tree, built, signed and loaded |
-| Planned series | 0003 counters and DIM sampling, 0004 level table and ethtool semantics (Phase 2); 0005 re-apply, link change, idle decay, teardown (Phase 3); 0006 tuned table (Phase 4, only if the table changes) |
+| Planned series | 0003 counters and DIM sampling, 0004 level table and ethtool semantics, 0005 single-packet guard (Phase 2); 0006 re-apply, link change, idle decay, teardown (Phase 3); 0007 tuned table (Phase 4, only if the table changes) |
 | Measured | The Phase 0 baseline of four configurations on the real link; no adaptive code exists yet |
 | Repository | https://github.com/Dhruv0306/r8169-adaptive-rx-dim |
 | Phase results | `docs/results/phase_0_environment_and_baseline.md` (done), `docs/results/phase_1_plumbing.md` (done) |
 | Plans for the remaining phases | `docs/plans/plan-2-adaptive-core.md`, `plan-3-robustness.md`, `plan-4-measurement-and-tuning.md`, `plan-5-report-and-demo.md` |
-| Next | Phase 2: T5 fails by 0.8 points; pick the fix (smaller first step, batching guard or accept), then finish Phase 2 and start Phase 3 |
+| Next | Phase 2: load patch 0005 (single-packet guard, fix for the T5 failure) and rerun T5, T4, T6, T11; then start Phase 3 |
 
 ## 3. Intended behaviour (as refined in the phase plans)
 

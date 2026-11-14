@@ -1,0 +1,68 @@
+From e6459dd9b59a890f65b966497732ff0f79a72279 Mon Sep 17 00:00:00 2001
+From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
+Date: Sat, 14 Nov 2026 06:11:12 +0000
+Subject: [PATCH] r8169: keep single-packet traffic at DIM level 0
+
+With adaptive RX moderation on, request-response traffic lost about 6%
+in transactions per second. DIM leaves level 0 whenever its statistics
+change by more than 10% between two windows of 64 events, which happens
+all the time at several thousand transactions per second. At level 1
+there is nothing to gain, since every reply is a single packet that
+waits for the timer, so DIM goes back, but the excursions still cost
+about one transaction in six the full 40 microseconds.
+
+Do not show DIM a poll that received a single packet while the level is
+0. Such a poll means that the CPU kept up with the NIC. Request-response
+traffic is made of such polls, so it never leaves level 0, while bulk
+traffic, which batches two or more packets per poll even at level 0,
+still does.
+
+Above level 0 every poll is shown to DIM, so that it can always step
+back down, for example when bulk traffic is followed by
+request-response traffic at a high level.
+
+Co-authored-by: Claude <noreply@anthropic.com>
+---
+ drivers/net/ethernet/realtek/r8169_main.c | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/realtek/r8169_main.c b/drivers/net/ethernet/realtek/r8169_main.c
+index ececcfc14..b32193bc5 100644
+--- a/drivers/net/ethernet/realtek/r8169_main.c
++++ b/drivers/net/ethernet/realtek/r8169_main.c
+@@ -5103,10 +5103,22 @@ static void rtl_task(struct work_struct *work)
+ 	}
+ }
+ 
+-static void rtl_rx_dim_update(struct rtl8169_private *tp)
++/* @pkts is the number of packets the poll received. At level 0 a poll with a
++ * single packet means that the CPU kept up with the NIC, so a longer timer
++ * would only add latency, and request-response traffic looks exactly like
++ * that. Such a poll is not shown to DIM, which then never leaves level 0 for
++ * it. Above level 0 every poll counts, so that DIM can always step back down,
++ * for example when bulk traffic is followed by request-response traffic.
++ * profile_ix is only changed by net_dim() here in NAPI context, and by the
++ * reset while the ethtool flag is off.
++ */
++static void rtl_rx_dim_update(struct rtl8169_private *tp, int pkts)
+ {
+ 	struct dim_sample sample = {};
+ 
++	if (pkts < 2 && !tp->rx_dim.profile_ix)
++		return;
++
+ 	dim_update_sample(++tp->rx_dim_events, tp->rx_dim_packets,
+ 			  tp->rx_dim_bytes, &sample);
+ 	net_dim(&tp->rx_dim, &sample);
+@@ -5127,7 +5139,7 @@ static int rtl8169_poll(struct napi_struct *napi, int budget)
+ 	 * rate where the poll may never complete.
+ 	 */
+ 	if (work_done && READ_ONCE(tp->rx_dim_enabled))
+-		rtl_rx_dim_update(tp);
++		rtl_rx_dim_update(tp, work_done);
+ 
+ 	if (work_done < budget && napi_complete_done(napi, work_done))
+ 		rtl_irq_enable(tp);
+-- 
+2.43.0
+

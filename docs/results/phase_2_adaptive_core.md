@@ -1,6 +1,6 @@
 # Phase 2: Adaptive core
 
-Status: patches 0003 and 0004 built, signed and loaded on the test machine (`srcversion 0D34392FEBFC36E8A0E688E`, 2026-11-14). T1 to T4, T6 to T10 pass. **T5 fails by a small margin** (transactions per second 5.8% below adaptive-off, limit 5%); a decision on the fallback in plan section 7 is pending, so the phase is not done.
+Status: patches 0003 and 0004 built, signed and loaded on the test machine (`srcversion 0D34392FEBFC36E8A0E688E`, 2026-11-14). T1 to T4, T6 to T10 pass. **T5 failed by a small margin** (transactions per second 5.8% below adaptive-off, limit 5%). The chosen fix is patch 0005 (single-packet guard, below); it has been built but not yet run on the test machine, so the phase is not done.
 
 Plan: [`../plans/plan-2-adaptive-core.md`](../plans/plan-2-adaptive-core.md).
 
@@ -109,13 +109,22 @@ Timer field 0, 1, 2, 5, 10 means 0, 40, 80, 200, 400 us. Samples per field:
 
 The T4 run lost 59 of 1553877 datagrams (0.0038%), at seconds 7 to 9, with the sampler running. In the five-run benchmark with adaptive on there was no loss at 600M or 900M. Two further 30 s runs gave 0 and 10 lost datagrams. In the run that lost 10, `UdpRcvbufErrors` and `UdpInErrors` both rose by 10 and the interface `missed` counter stayed at 110: the datagrams were dropped by the receive socket buffer of the test machine, not by the NIC. With adaptive off one of ten benchmark runs also lost datagrams (0.0037% at 900M). Conclusion: occasional tiny socket-buffer loss of the same size with or without adaptive mode; not attributed to the driver. If it matters later, repeat with a larger receive buffer (`iperf3 -w`).
 
-### Why T5 fails and what the plan allows
+### Why T5 fails, and the fix (patch 0005)
 
-The closed-loop run leaves level 0 about a third of the time (T5 trace above). The cheapest non-zero level is 40 us (one hardware unit at `INTT` 1), and a request-response reply that waits for the timer pays most of it. The plan says: if T5 fails, record it and consider a cap or a different table before Phase 3. Candidate fixes, decision pending:
+DIM works in windows of 64 events. While parked at level 0 it leaves for level 1 whenever bytes, packets or events per millisecond change by more than 10% between two windows, which request-response traffic does all the time (a window is about 7 ms at 9,000 transactions per second). Level 1 cannot help there, since throughput falls when the timer is added, so DIM steps back, but each excursion costs the replies in that window the full 40 us. That fits the measured +6.6 us (about one transaction in six). Open-loop traffic is different: throughput does not fall and events per ms do, which DIM scores as better, so it climbs.
 
-1. A table with a smaller first step. The hardware unit is 5 us at `INTT` 0, so the top level would be capped at 75 us, which gives up much of the 600M UDP gain.
-2. Let DIM see only polls that received two or more packets, so single-packet traffic stays at level 0. It needs a rule that lets the level fall again, otherwise a high level can stick.
-3. Accept the 5.8% and tune in Phase 4.
+Options considered: a smaller first step (5 us hardware unit, top level capped at 75 us, loses much of the UDP gain), a batching guard, or accepting the loss and tuning in Phase 4. The guard was chosen (D10):
+
+- **D10, patch 0005.** At level 0, a poll that received a single packet is not shown to DIM, so request-response traffic never leaves level 0. Bulk traffic batches two or more packets per poll even at level 0 (about 2.5 on average in the runs above), so it still climbs. Above level 0 every poll is shown to DIM, so the level can always step back down, for example from bulk UDP at level 4 to request-response.
+- Built with no warning at `W=1`; applies on 0003 and 0004 with `patch -p1`; checkpatch reports only the missing `Signed-off-by` and the `Co-authored-by` signature.
+
+Retest to run on the PC with 0005 loaded:
+
+| # | Check | Pass when |
+|---|---|---|
+| T5 again | `rx_bench.sh -l adaptive-guard -w "rr tcp udp" -u "600M 900M"` with adaptive on, against `patched-off-2` | RR within 5% of `patched-off-2` (the level trace should stay at 0), UDP 600M NET_RX still near 3800 per second, no loss |
+| T4 again | 600M UDP with the sampler | Level still rises above 0 within a few seconds |
+| T11 (new) | 30 s of 600M UDP, then straight into `netperf TCP_RR` with the sampler running | Level falls back to 0 within a second or so of the RR traffic starting; it must not stay at 400 us |
 
 ## Known gaps carried to Phase 3
 
