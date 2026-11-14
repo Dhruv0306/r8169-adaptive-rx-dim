@@ -1,6 +1,6 @@
 # Plan for Phase 2: Adaptive core
 
-Status: patches 0003 and 0004 written, tests pending. Depends on Phase 0 and Phase 1 (done). High-level summary: [`../phases.md`](../phases.md), Phase 2. Results go in `docs/results/phase_2_adaptive_core.md`.
+Status: done 2026-11-14 (patches 0003 to 0005).
 
 Machine tags used below: **[Claude]** work done in the chat, **[PC]** the machine under test (root shell, at the console), **[PEER]** the second machine, **[repo]** the project repository. Set `PEER=<peer address>` in every PC terminal first.
 

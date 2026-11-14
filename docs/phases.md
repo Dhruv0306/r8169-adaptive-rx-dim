@@ -210,7 +210,7 @@ Update this table when a phase finishes, and link its results file. Planned date
 |---|---|---|---|
 | 0 | | 2026-11-11 | Done. Machine facts, source reading and register check, validated benchmark script, and four baseline runs (stock, patched-off, static-50us, static-200us). [Results](results/phase_0_environment_and_baseline.md) |
 | 1 | | 2026-11-10 | Done. Patches 0001 and 0002 built, signed and loaded. [Results](results/phase_1_plumbing.md) |
-| 2 | | | In progress. Patches 0003 and 0004 loaded and tested; T1 to T4 and T6 to T10 pass, T5 failed by 0.8 points (-5.8%); fix is patch 0005 (single-packet guard), retest pending. [Results](results/phase_2_adaptive_core.md) |
+| 2 | | 2026-11-14 | Done. Patches 0003, 0004 and 0005 built, signed and loaded; T1 to T11 pass (T5 needed the single-packet guard, patch 0005). Open item for Phase 4: 900M UDP dwells at low levels in some runs. [Results](results/phase_2_adaptive_core.md) |
 | 3 | | | |
 | 4 | | | |
 | 5 | | | |

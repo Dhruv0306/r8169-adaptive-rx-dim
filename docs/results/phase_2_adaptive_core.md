@@ -1,6 +1,6 @@
 # Phase 2: Adaptive core
 
-Status: patches 0003 and 0004 built, signed and loaded on the test machine (`srcversion 0D34392FEBFC36E8A0E688E`, 2026-11-14). T1 to T4, T6 to T10 pass. **T5 failed by a small margin** (transactions per second 5.8% below adaptive-off, limit 5%). The chosen fix is patch 0005 (single-packet guard, below); it has been built but not yet run on the test machine, so the phase is not done.
+Status: done 2026-11-14. Patches 0003, 0004 and 0005 built, signed and loaded on the test machine (final `srcversion 2711688295ECDA0D2245862`). T1 to T11 pass. T5 failed with 0003 and 0004 alone (-5.8%) and passes with patch 0005 (+1.8%). One observation is carried to Phase 4: 900 Mbit/s UDP sometimes dwells at low levels (see "Retest with patch 0005").
 
 Plan: [`../plans/plan-2-adaptive-core.md`](../plans/plan-2-adaptive-core.md).
 
@@ -65,7 +65,8 @@ Test machine: RTL8168h on `enp3s0`, 1 Gbit/s, peer 10.8.1.53, lockdep enabled. `
 | T2 | Pass | `rx-usecs 50` gave `0x20e0` / `0x00a0`; after adaptive on, a 300M UDP run (0 loss) and adaptive off, `rx-usecs` read 50 again and the registers were `0x20e0` / `0x00a0`. |
 | T3 | Pass | `ethtool -C enp3s0 adaptive-rx on tx-frames 8` gave `r8169: TX frame limit is not supported with adaptive-rx` and `Invalid argument`; `Adaptive RX: off`, `tx-frames` unchanged. |
 | T4 | Pass | Under 600M UDP the timer field went to 5 (200 us) and 10 (400 us); see the loss note below. NET_RX per second fell from 20872 (adaptive off) to 3792 (adaptive on). |
-| T5 | **Fail (by 0.8 points)** | 8794 +/- 113 trans/s against 9340 +/- 115 (adaptive off, same session): -5.8%. Latency 113.6 us against 107.0 us. See below. |
+| T5 | **Fail with 0003 and 0004, pass with 0005** | Without 0005: 8794 +/- 113 trans/s against 9340 +/- 115 (adaptive off, same session): -5.8%, latency 113.6 us against 107.0 us. With 0005: 9508 +/- 192 trans/s (+1.8%), latency 104.9 us. See below. |
+| T11 | Pass (with 0005) | 600M UDP for 20 s, then TCP_RR with the sampler running: the level was 10 (400 us) until 19.93 s, 0 at the next sample (20.17 s) and at every sample for the 12 s that follow. |
 | T6 | Pass | 941.2 Mbit/s against 941.3, 0 retransmits in the 30 s run. |
 | T7 | Observed | After the load stopped the level stayed at the top: `tail` of the trace showed timer field 10 (400 us) and about 4 interrupts per second. Confirms the missing idle decay (Phase 3). |
 | T8 | Pass | `patched-off-2` against `patched-off`: 9340 +/- 115 against 9330 +/- 140 trans/s, 107.0 against 107.1 us, TCP 941.3 both, UDP loss 0.0007% against 0.0017% at 900M. |
@@ -118,13 +119,39 @@ Options considered: a smaller first step (5 us hardware unit, top level capped a
 - **D10, patch 0005.** At level 0, a poll that received a single packet is not shown to DIM, so request-response traffic never leaves level 0. Bulk traffic batches two or more packets per poll even at level 0 (about 2.5 on average in the runs above), so it still climbs. Above level 0 every poll is shown to DIM, so the level can always step back down, for example from bulk UDP at level 4 to request-response.
 - Built with no warning at `W=1`; applies on 0003 and 0004 with `patch -p1`; checkpatch reports only the missing `Signed-off-by` and the `Co-authored-by` signature.
 
-Retest to run on the PC with 0005 loaded:
+### Retest with patch 0005 (2026-11-14)
 
-| # | Check | Pass when |
-|---|---|---|
-| T5 again | `rx_bench.sh -l adaptive-guard -w "rr tcp udp" -u "600M 900M"` with adaptive on, against `patched-off-2` | RR within 5% of `patched-off-2` (the level trace should stay at 0), UDP 600M NET_RX still near 3800 per second, no loss |
-| T4 again | 600M UDP with the sampler | Level still rises above 0 within a few seconds |
-| T11 (new) | 30 s of 600M UDP, then straight into `netperf TCP_RR` with the sampler running | Level falls back to 0 within a second or so of the RR traffic starting; it must not stay at 400 us |
+Same session conditions as the comparison above, adaptive on, `rx_bench.sh` 5 runs each (label `adaptive-guard`):
+
+| Workload | Metric | adaptive off | adaptive on, no 0005 | adaptive on, with 0005 |
+|---|---|---|---|---|
+| RR 64 B | trans/s | 9340 +/- 115 | 8794 +/- 113 | **9508 +/- 192** |
+| RR 64 B | mean latency us | 107.0 +/- 1.3 | 113.6 +/- 1.5 | 104.9 +/- 2.0 |
+| TCP bulk | Mbit/s, NET_RX/s | 941.3, 32504 | 941.2, 33439 | 941.3, 32480 |
+| UDP 600M | NET_RX/s, loss % | 20872, 0 | 3792, 0 | 3954 +/- 293, 0 |
+| UDP 900M | NET_RX/s | 36801 +/- 358 | 21510 +/- 2707 | 25853 +/- 7451 |
+| UDP 900M | loss % (5 runs) | 0.0007 | 0.0000 | 0.0018 (two runs of 0.0045) |
+
+- **T4 again:** 600M UDP for 30 s with the sampler gave only timer fields 5 (35 samples) and 10 (83 samples); the level had risen before the first sample. No loss.
+- **T11:** as in the table of tests.
+- Build with no warning at `W=1`; `chk` empty after every run.
+
+### 900 Mbit/s UDP: dwell at low levels (carried to Phase 4)
+
+In the benchmark with 0005 two of the five 900M runs behaved like adaptive off (NET_RX about 34000 per second, about 1100 to 1200 interrupts per second). Six further 15 s runs with the level sampler:
+
+| Run | NET_RX/s | Samples at timer field 0 / 1 / 2 / 5 / 10 | Loss % |
+|---|---|---|---|
+| 1 | 23239 | 3 / 1 / 4 / 10 / 38 | 0.011 |
+| 2 | 21227 | 0 / 0 / 0 / 10 / 45 | 0 |
+| 3 | 20270 | 0 / 0 / 0 / 10 / 45 | 0.012 |
+| 4 | 21455 | 0 / 0 / 0 / 9 / 46 | 0.0095 |
+| 5 | 31036 | 17 / 6 / 12 / 9 / 12 | 0 |
+| 6 | 22720 | 0 / 0 / 3 / 14 / 38 | 0.0021 |
+
+Five of six runs sit at the top levels with about 20000 to 23000 NET_RX per second; run 5 spent about 60% of its samples at 0 to 80 us and had the highest NET_RX. Over all guarded runs, three of eleven dwelled low at 900M; without 0005 one of five was intermediate (26125). That is too little data to say whether 0005 makes this more likely. A possible mechanism, not verified: below level 1 the guard counts fewer polls as events than above it, so at steady throughput DIM can read the step from level 0 to level 1 as more events per millisecond, which it scores as worse. Phase 4 should check it with more repeats and the level trace (and, if confirmed, count every poll as an event and gate leaving level 0 on a running average of packets per poll instead).
+
+Loss in these runs is 0.002 to 0.012% in four of six runs. Earlier analysis showed this kind of loss to be receive-socket-buffer overflow on the test machine, not NIC loss, and the sampler (an `ethtool` call every 0.2 s) was running; the loss is not attributed to the driver.
 
 ## Known gaps carried to Phase 3
 
@@ -133,3 +160,4 @@ Retest to run on the PC with 0005 loaded:
 - A link-speed change alters the timer unit but the level is not re-applied.
 - No idle decay: after traffic stops the level stays where it was (T7: stays at 400 us).
 - DIM changes level about 17 times per second under steady load (T4 log); consider a longer measurement window in Phase 4.
+- 900M UDP dwells at low levels in some runs (section above); more CPU is used with adaptive mode on at 900M, but the CPU columns are noisy (repeat in Phase 4).
