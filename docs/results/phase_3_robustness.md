@@ -1,6 +1,6 @@
 # Phase 3: Robustness and locking
 
-Status: in progress (started 2026-11-14). Patch 0006 is written and builds; the tests on the PC have not been run. Everything under "Tests" below is still to be filled in, and no result is claimed until it is.
+Status: in progress (started 2026-11-14). Patch 0006 is written, builds and was loaded on the PC. The table below shows what was measured; F4b, F6, the scripted F9 timing and a loaded F5 are still to do.
 
 Plan: [`../plans/plan-3-robustness.md`](../plans/plan-3-robustness.md). Locking analysis: [`../locking.md`](../locking.md).
 
@@ -34,15 +34,17 @@ Commands are in the plan, section 5; `scripts/phase3_tests.sh DEV TEST` runs F4,
 
 | # | Result | Evidence |
 |---|---|---|
-| F4 | not run | |
-| F4b | not run | |
-| F5 | not run | |
-| F6 | not run | |
-| F7 | not run | |
-| F8 | partly done | Build and checkpatch above; `sparse` not run |
-| F9 | not run | |
-| F10 | not run | |
-| F11 | not run | |
+| F4 | pass | 10 down/up rounds with adaptive on: after every `up`, `CPlusCmd 0x20e1` (`INTT=1`, `PktCntrDisable=1`) and `IntrMitigate 0x0000` (level 0) |
+| F4b | not run | needs the test hook |
+| F5 | link change done, conversion not exercised | link went 1000, 100, 1000 Mbit/s with adaptive on and the registers stayed consistent, but the 80M UDP load did not raise the level, so the new unit conversion was not seen. Rerun with a higher rate |
+| F6 | not run | manual |
+| F7 | pass for hangs and register state | 30 min of adaptive toggling every 100 ms with 161 link bounces, then 20 module reloads: no hang, `rmmod` always returned, registers consistent after the toggling and after every reload. Whether the background loads ran during it is not confirmed (the script hid `iperf3` errors; fixed in the next script commit) |
+| F8 | partly done | Build and checkpatch above; no `sparse` run |
+| F9 | decay seen, timing not measured by the script | by hand: under 600M UDP the timer field reached 5 and 10 (levels 3 and 4, flapping between them); `rx dim: idle, level 0` was logged about 0.44 s after the last level change. The scripted timing run is still to be done |
+| F10 | weak | 9617 transactions per second after a burst, but the level was already 0 before the sparse traffic, so the decay was not what was tested |
+| F11 | pass | 60 s of concurrent `adaptive-rx` and `tx-usecs` changes under load: no hang, final `PktCntrDisable=1`. `tx-usecs 20` reads back as 40 because one timer unit is 40 us at 1 Gbit/s, which is the stock rounding |
+
+Lockdep: `journalctl -k -b` for the whole boot (603 link up/down lines, so the log was complete) contains no lockdep report, `WARNING:`, `BUG:` or `Oops` after the tests above. The first versions of the scripts read `dmesg` by line count, which did not work, so only this journal check counts for F4 to F11.
 
 ## Bugs found and fixed during the phase
 
