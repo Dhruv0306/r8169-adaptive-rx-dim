@@ -57,7 +57,11 @@ check_state() {
 }
 
 : >"$log"
-ethtool -C "$dev" adaptive-rx on
+ethtool -C "$dev" adaptive-rx on || {
+	echo "FAIL: adaptive-rx is refused, the patched module is probably not loaded." >&2
+	echo "Check cat /sys/module/r8169/srcversion and run scripts/build_sign_load.sh" >&2
+	exit 1
+}
 
 # Loads that restart themselves when a link bounce kills them
 (while :; do iperf3 -c "$PEER" -R -u -b 300M -t 30 >/dev/null 2>&1 || sleep 1; done) &

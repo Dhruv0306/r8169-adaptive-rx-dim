@@ -11,6 +11,7 @@
 #   f4 [N]      N times (default 10): interface down, up, read the registers
 #   f4b         run the reset task under load (needs the force_reset test hook)
 #   f5          link speed change to 100 Mbit/s and back, under load
+#               (rate with F5_RATE, default 95M)
 #   f9          idle decay: time from the end of a UDP load to level 0
 #   f10         sparse request-response traffic right after a burst
 #   f11 [SECS]  concurrent ethtool changes while the load runs (default 60)
@@ -26,6 +27,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 dev=${1:-}
 test_name=${2:-}
 arg=${3:-}
+f5_rate=${F5_RATE:-95M}
 
 usage() {
 	sed -n '/^# usage:/,/^# BUG and Oops/p' "$0" | sed 's/^# \{0,1\}//' >&2
@@ -97,8 +99,18 @@ report() {
 	fi
 }
 
+# Turn adaptive mode on, or stop with the likely cause: the stock r8169 has no
+# adaptive-rx flag, which is what is loaded after a reboot.
 adaptive_on() {
-	ethtool -C "$dev" adaptive-rx on
+	local err
+
+	if ! err=$(ethtool -C "$dev" adaptive-rx on 2>&1); then
+		echo "FAIL: ethtool refused adaptive-rx on: $(echo "$err" | tr '\n' ' ')" >&2
+		echo "The patched module is probably not loaded. Check" >&2
+		echo "  cat /sys/module/r8169/srcversion" >&2
+		echo "and run: bash scripts/build_sign_load.sh" >&2
+		exit 1
+	fi
 }
 
 case $test_name in
@@ -154,9 +166,9 @@ f5)
 	ethtool "$dev" | grep -E 'Speed|Duplex'
 	ethtool -c "$dev" | grep -E 'Adaptive RX|rx-usecs'
 	regs
-	start_load 80M 10
+	start_load "$f5_rate" 10
 	sleep 6
-	echo "== 100 Mbit/s, 80M UDP load, level"
+	echo "== 100 Mbit/s, $f5_rate UDP load, level"
 	ethtool -c "$dev" | grep -E 'rx-usecs'
 	regs
 	[ "$(timer_field)" -gt 0 ] ||
