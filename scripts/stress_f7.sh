@@ -47,6 +47,10 @@ cleanup() {
 	[ -z "$pids" ] || kill $pids 2>/dev/null || true
 	pkill -x iperf3 2>/dev/null || true
 	pkill -x netperf 2>/dev/null || true
+	# An interrupted run can stop between a link down and the next up, or
+	# between rmmod and insmod: leave a module loaded and the link up.
+	[ -d /sys/module/r8169 ] || insmod "$ko" 2>/dev/null || true
+	ip link set "$dev" up 2>/dev/null || true
 	if [ "$nm_off" = 1 ]; then
 		nmcli dev set "$dev" managed yes || true
 		nm_off=0
