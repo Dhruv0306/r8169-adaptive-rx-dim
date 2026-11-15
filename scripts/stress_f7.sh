@@ -75,6 +75,21 @@ level_now() {
 	bash "$here/read_intrmit.sh" "$dev" 2>/dev/null | sed -n 's/.*rx_timer=\([0-9]*\).*/\1/p'
 }
 
+# Wait up to $1 seconds for the RX level to rise above 0, which needs traffic.
+# After a bounce the peer's iperf3 server can stay busy with the cut test for
+# a while, so the loads sometimes start again late. Returns 1 if it never rose.
+wait_level_up() {
+	local i=0 limit=$(($1 * 2)) l
+
+	while [ "$i" -lt "$limit" ]; do
+		l=$(level_now || true)
+		[ "${l:-0}" -gt 0 ] && return 0
+		sleep 0.5
+		i=$((i + 1))
+	done
+	return 1
+}
+
 # A TCP connection to the iperf3 port of the peer works.
 peer_up() {
 	timeout 2 bash -c "exec 3<>/dev/tcp/$PEER/5201" 2>/dev/null
@@ -202,6 +217,7 @@ while [ "$(date +%s)" -lt "$end" ]; do
 		sleep 0.3
 		ethtool -C "$dev" adaptive-rx on >/dev/null 2>&1 || true
 		sleep 1.5
+		wait_level_up 20 || true
 	fi
 	lvl=$(level_now || true)
 	if [ "$quiet" = 1 ]; then
@@ -236,6 +252,7 @@ bash "$here/read_intrmit.sh" "$dev"
 i=0
 while [ "$i" -lt "$reloads" ]; do
 	i=$((i + 1))
+	wait_level_up 30 || true
 	lvl=$(level_now || true)
 	if [ "${lvl:-0}" -gt 0 ]; then
 		reload_up=$((reload_up + 1))
