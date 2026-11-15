@@ -63,6 +63,10 @@ trap cleanup EXIT
 own_address() {
 	if command -v nmcli >/dev/null 2>&1; then
 		nmcli dev set "$dev" managed no || true
+		if [ "$nm_off" = 0 ]; then
+			echo "NetworkManager no longer manages $dev for this run: the network icon disappears and"
+			echo "the PC has no internet until the script ends (expected). The address is kept by the script."
+		fi
 		nm_off=1
 	fi
 	ip link set "$dev" up || true
