@@ -1,6 +1,6 @@
 # Phase 3: Robustness and locking
 
-Status: in progress (started 2026-11-14). Patch 0006 is written, builds and was loaded on the PC. The table below shows what was measured; F4b, F6, the scripted F9 timing and a loaded F5 are still to do.
+Status: in progress (started 2026-11-14). Patch 0006 is written, builds and was loaded on the PC. The table below shows what was measured; F4b (the first attempt ran without traffic because the peer was unreachable right after the module reload), a loaded F5 and the F9 timing from the last packet are still to do.
 
 Plan: [`../plans/plan-3-robustness.md`](../plans/plan-3-robustness.md). Locking analysis: [`../locking.md`](../locking.md).
 
@@ -36,12 +36,12 @@ Commands are in the plan, section 5; `scripts/phase3_tests.sh DEV TEST` runs F4,
 |---|---|---|
 | F4 | pass | 10 down/up rounds with adaptive on: after every `up`, `CPlusCmd 0x20e1` (`INTT=1`, `PktCntrDisable=1`) and `IntrMitigate 0x0000` (level 0) |
 | F4b | not run | needs the test hook |
-| F5 | link change done, conversion not exercised | link went 1000, 100, 1000 Mbit/s with adaptive on and the registers stayed consistent, but the 80M UDP load did not raise the level, so the new unit conversion was not seen. Rerun with a higher rate |
-| F6 | not run | manual |
+| F5 | not valid yet | the link went 1000, 100, 1000 Mbit/s with consistent registers, but both runs had no traffic: the second one printed iperf3 "No route to host" (no connectivity yet after the link change), so the unit conversion was not exercised. The script now waits for the peer; rerun |
+| F6 | pass | `rtcwake -m mem -s 30`: the machine resumed with the link up, `Adaptive RX: on` was kept, `IntrMitigate` read `0x0000` right after resume, and under 600M UDP the timer fields 5 and 10 appeared (3 and 20 samples at 0.5 s); no lockdep, `WARNING`, `BUG` or `Oops` in `journalctl -k` since before the suspend |
 | F7 | pass for hangs and register state | 30 min of adaptive toggling every 100 ms with 161 link bounces, then 20 module reloads: no hang, `rmmod` always returned, registers consistent after the toggling and after every reload. Whether the background loads ran during it is not confirmed (the script hid `iperf3` errors; fixed in the next script commit) |
 | F8 | partly done | Build and checkpatch above; no `sparse` run |
-| F9 | decay seen, timing not measured by the script | by hand: under 600M UDP the timer field reached 5 and 10 (levels 3 and 4, flapping between them); `rx dim: idle, level 0` was logged about 0.44 s after the last level change. The scripted timing run is still to be done |
-| F10 | weak | 9617 transactions per second after a burst, but the level was already 0 before the sparse traffic, so the decay was not what was tested |
+| F9 | decay works, latency not yet measured from the last packet | scripted run: level 2 (80 us) under 600M UDP, back at `rx_timer=0` 0.69 s after `iperf3` exited. That figure includes about 0.1 s per register read and any stray packet that restarts the idle window, so it neither confirms nor contradicts the 0.4 s expectation. `scripts/decay_timing.sh` measures from the last received packet and is still to be run |
+| F10 | no regression seen | 9169 transactions per second with the level at 0 beforehand; the earlier run of the same driver state gave 9617, so the spread between runs is about 5 percent. A same-session run with adaptive off is still to do for a clean comparison |
 | F11 | pass | 60 s of concurrent `adaptive-rx` and `tx-usecs` changes under load: no hang, final `PktCntrDisable=1`. `tx-usecs 20` reads back as 40 because one timer unit is 40 us at 1 Gbit/s, which is the stock rounding |
 
 Lockdep: `journalctl -k -b` for the whole boot (603 link up/down lines, so the log was complete) contains no lockdep report, `WARNING:`, `BUG:` or `Oops` after the tests above. The first versions of the scripts read `dmesg` by line count, which did not work, so only this journal check counts for F4 to F11.
