@@ -13,10 +13,16 @@
 # to leave the device alone for the run (the icon disappears, no internet)
 # and gets it back at the end.
 #
-# usage: [WAIT=90] bounce_rx_check.sh DEV [on|off|none]
+# usage: [WAIT=90] [NM=managed|unmanaged] bounce_rx_check.sh DEV [on|off|none]
 #
 #   on, off   set adaptive mode first (patched module only)
 #   none      leave the adaptive mode alone (default, and the stock module)
+#
+# NM=managed (the default) leaves NetworkManager in charge: it takes the
+# address away on the bounce and runs DHCP again, as in normal use.
+# NM=unmanaged takes the device away from it and puts the same static address
+# back after the bounce, which is what stress_f7.sh does; on a network that
+# needs a DHCP lease on the port this may never get traffic going again.
 #
 # Needs PEER=<address of the machine running iperf3 -s>.
 
@@ -31,6 +37,7 @@ csv=/tmp/bounce_rx.csv
 [ -n "$dev" ] || { sed -n '/^# usage:/,/^# Needs PEER/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ -n "${PEER:-}" ] || { echo "export PEER=<peer address> first" >&2; exit 2; }
 
+nm_mode=${NM:-managed}
 nm_off=0
 cleanup() {
 	pkill -x iperf3 2>/dev/null || true
@@ -58,12 +65,13 @@ none) ;;
 esac
 echo "module srcversion $(cat /sys/module/r8169/srcversion 2>/dev/null || echo unknown), adaptive mode: $mode"
 
-if command -v nmcli >/dev/null 2>&1; then
+if [ "$nm_mode" = unmanaged ] && command -v nmcli >/dev/null 2>&1; then
 	nmcli dev set "$dev" managed no || true
 	nm_off=1
+	ip link set "$dev" up || true
+	ip addr replace "$addr" dev "$dev" || true
 fi
-ip link set "$dev" up || true
-ip addr replace "$addr" dev "$dev" || true
+echo "NetworkManager: $nm_mode"
 for _ in $(seq 1 30); do
 	iperf3 -c "$PEER" -t 1 >/dev/null 2>&1 && break
 	sleep 1
@@ -94,8 +102,11 @@ t0=$(date +%s.%N)
 ip link set "$dev" down
 sleep 1
 ip link set "$dev" up
-ip addr replace "$addr" dev "$dev"
+if [ "$nm_mode" = unmanaged ]; then
+	ip addr replace "$addr" dev "$dev"
+fi
 prev=$(rx)
+prev_tx=$(cat "$sys_net/$dev/statistics/tx_packets")
 last_tcp=no
 last_nb=""
 n=0
@@ -106,11 +117,14 @@ while [ "$(date +%s)" -lt "$end" ]; do
 	cur=$(rx)
 	now=$(date +%s.%N)
 	t=$(echo "$now - $t0" | bc)
-	tcp=no
-	if timeout 1 bash -c "exec 3<>/dev/tcp/$PEER/5201" 2>/dev/null; then
-		tcp=yes
+	tcp=yes
+	if ! err=$(timeout 1 bash -c "exec 3<>/dev/tcp/$PEER/5201" 2>&1); then
+		err=${err##*: }
+		tcp=${err:-timeout}
 	fi
 	nb=$(ip neigh show "$PEER" 2>/dev/null | awk '{print $NF}' | head -n 1)
+	route=$(ip route get "$PEER" 2>&1 | head -n 1 | cut -c1-60)
+	tx=$(cat "$sys_net/$dev/statistics/tx_packets")
 	echo "$t,$cur,$tcp,$nb" >>"$csv"
 	if [ "$tcp" = yes ] && [ -z "$tcp_ok" ]; then
 		tcp_ok=$t
@@ -119,12 +133,13 @@ while [ "$(date +%s)" -lt "$end" ]; do
 		udp_ok=$t
 	fi
 	if [ "$tcp" != "$last_tcp" ] || [ "$nb" != "$last_nb" ] || [ $((n % 5)) = 0 ]; then
-		printf '%5.1f s  rx_packets +%-7s TCP to the peer: %-3s  neighbour entry: %s\n' \
-			"$t" "$((cur - prev))" "$tcp" "${nb:-none}"
+		printf '%5.1f s  rx +%-6s tx +%-4s TCP: %-28s neighbour: %-10s route: %s\n' \
+			"$t" "$((cur - prev))" "$((tx - prev_tx))" "$tcp" "${nb:-none}" "$route"
 	fi
 	last_tcp=$tcp
 	last_nb=$nb
 	prev=$cur
+	prev_tx=$tx
 	if [ -n "$tcp_ok" ] && [ -n "$udp_ok" ]; then
 		break
 	fi
@@ -142,5 +157,10 @@ else
 fi
 echo "== interface counters (RX: bytes packets errors dropped missed mcast)"
 ip -s link show "$dev" | sed -n '/RX:/{n;p}'
+echo "== state at the end"
+ip -br link show "$dev"
+ip -4 -br addr show "$dev"
+ip -4 route
+ip neigh show dev "$dev"
 echo "== kernel log (r8169, lockdep, WARNING, BUG, Oops) since 3 minutes ago"
 journalctl -k --since "-180s" --no-pager 2>/dev/null | grep -iE 'lockdep|WARNING:|BUG:|Oops|r8169' | tail -n 12 || true
