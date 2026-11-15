@@ -14,6 +14,14 @@
 #   MODULE.ko signed module to load (default /root/r8169-new-signed.ko)
 #
 # Needs PEER=<address of the machine running iperf3 -s and netserver>.
+#
+# NetworkManager takes the address away on every "ip link set down" and needs
+# longer than the time between two bounces to give it back, so with it in
+# charge no traffic runs at all. The script therefore tells NetworkManager to
+# leave the device alone (nmcli dev set DEV managed no) and puts the address
+# back itself after every bounce and every reload. The PC has no other
+# connection during the run and no internet, which is expected; the script
+# gives the device back to NetworkManager at the end.
 # The script ends with the registers and the kernel messages that appeared
 # while it ran; look for lockdep, WARNING, BUG and Oops.
 
@@ -32,14 +40,34 @@ ko=${4:-/root/r8169-new-signed.ko}
 log=/root/stress_f7.log
 m=$(date +%s)
 pids=""
+nm_off=0
 
 cleanup() {
 	# shellcheck disable=SC2086
 	[ -z "$pids" ] || kill $pids 2>/dev/null || true
 	pkill -x iperf3 2>/dev/null || true
 	pkill -x netperf 2>/dev/null || true
+	if [ "$nm_off" = 1 ]; then
+		nmcli dev set "$dev" managed yes || true
+		nm_off=0
+	fi
 }
 trap cleanup EXIT
+
+# Take the device away from NetworkManager and put its address back, as it was
+# before the test, so that a bounce does not lose it.
+own_address() {
+	if command -v nmcli >/dev/null 2>&1; then
+		nmcli dev set "$dev" managed no || true
+		nm_off=1
+	fi
+	ip link set "$dev" up || true
+	ip addr replace "$addr" dev "$dev" || true
+}
+
+addr=$(ip -4 -o addr show dev "$dev" | awk '{print $4; exit}')
+[ -n "$addr" ] || { echo "FAIL: $dev has no IPv4 address, bring the network up first" >&2; exit 1; }
+echo "keeping $addr on $dev across the bounces"
 
 # The RX timer field now; above 0 means DIM has a level and the decay work is armed.
 level_now() {
@@ -71,6 +99,12 @@ ethtool -C "$dev" adaptive-rx on || {
 	echo "Check cat /sys/module/r8169/srcversion and run scripts/build_sign_load.sh" >&2
 	exit 1
 }
+own_address
+for i in $(seq 1 30); do
+	iperf3 -c "$PEER" -t 1 >/dev/null 2>&1 && break
+	sleep 1
+done
+iperf3 -c "$PEER" -t 1 >/dev/null 2>&1 || { echo "FAIL: iperf3 cannot reach $PEER with the address kept" >&2; exit 1; }
 
 # Loads that restart themselves when a link bounce kills them. A bounce takes
 # the address away for a few seconds, so a round that lasts 30 s never ends:
@@ -121,6 +155,7 @@ while [ "$(date +%s)" -lt "$end" ]; do
 	ip link set "$dev" down
 	sleep 1
 	ip link set "$dev" up
+	ip addr replace "$addr" dev "$dev"
 	echo "round $round: link bounced at $(date +%T)"
 done
 
@@ -142,7 +177,8 @@ while [ "$i" -lt "$reloads" ]; do
 	fi
 	rmmod r8169
 	insmod "$ko"
-	ip link set "$dev" up 2>/dev/null || true
+	sleep 2
+	own_address
 	sleep 8
 	ethtool -C "$dev" adaptive-rx on
 	echo "reload $i: srcversion $(cat /sys/module/r8169/srcversion)"
