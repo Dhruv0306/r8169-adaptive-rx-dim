@@ -38,7 +38,7 @@ Commands are in the plan, section 5; `scripts/phase3_tests.sh DEV TEST` runs F4,
 | F4b | pass at the register level; RX stall found, not caused by 0006 | with the hook and 600M UDP load at level 4: the kernel log shows `TEST restore: level 4, IntrMitigate 0x00a0` right after the reset, so the level was written again and the register was not left at 0. The same forced reset with adaptive mode off (no DIM, no restore) stops RX in the same way, see "RX stops after a forced reset" below. No lockdep, `WARNING`, `BUG` or `Oops` in either run |
 | F5 | pass for the unit at 100 Mbit/s; the link work itself is not separately visible | 1000, 100, 1000 Mbit/s, no lockdep. At 100 Mbit/s under a 90M load of 64 byte payloads the level rose to `rx-usecs: 82` with `IntrMitigate 0x0040` (`rx_timer=4`): 4 units of 20.48 us, level 2 at the 100 Mbit/s unit, so the conversion is right. After the link returned to 1000 Mbit/s the registers read `IntrMitigate 0x0000` and `Adaptive RX: on`. The level reaches 0 while the link is down (decay), so the link work normally finds level 0 when the link comes up |
 | F6 | pass | `rtcwake -m mem -s 30`: the machine resumed with the link up, `Adaptive RX: on` was kept, `IntrMitigate` read `0x0000` right after resume, and under 600M UDP the timer fields 5 and 10 appeared (3 and 20 samples at 0.5 s); no lockdep, `WARNING`, `BUG` or `Oops` in `journalctl -k` since before the suspend |
-| F7 | not valid yet | four runs (three of 30 minutes with 161 bounces each, one of 3 minutes with 17) ended with no hang of the script, `rmmod` always returning, registers matching the flag and no lockdep, `WARNING`, `BUG` or `Oops` in the kernel log, but none had traffic at the time of a bounce. The 3 minute run with the address kept finished 4 UDP and 4 TCP_RR rounds, all in the 11 s before the first bounce, and nothing finished or failed afterwards: both loads stayed stuck in their first attempt after the bounce. One bounce under a steady 300M UDP load with `bounce_rx_check.sh` gave the same result on all three configurations: RX did not come back within 30 s on the patched module with adaptive on, on the patched module with adaptive off, and on the stock module (srcversion `A8C76016444D067D3998384`); a TCP connect to the peer also failed for 10 s. So the patches do not cause it. Open: whether the NIC is dead after a bounce or the network around it (the port, the address) needs longer than that; the check now measures when TCP to the peer works again, the neighbour entry and the UDP stream separately, over 90 s. Also a design flaw of the script: toggling `adaptive-rx` every 100 ms leaves DIM no time to climb, so the level is nearly always 0 at a bounce; every other bounce now pauses the toggling first. `scripts/bounce_rx_check.sh` runs one bounce under load and reports whether and when RX comes back; to be run on the stock module and on the patched one with adaptive off and on |
+| F7 | not run in its final form yet | four earlier runs of the 10 s bounce design (three of 30 minutes with 161 bounces each, one of 3 minutes) ended with no hang of the script, `rmmod` always returning, registers matching the flag and no lockdep, `WARNING`, `BUG` or `Oops` in the kernel log, but none had traffic at the time of a bounce, because the network does not forward for about 30 s after every link-up (see "Network delay after a link-up" below). The script was rewritten: NetworkManager stays in charge, every bounce and reload waits until the peer answers again, traffic runs for 12 s, and every second bounce pauses the 100 ms toggling so that DIM can climb; it reports how many bounces and reloads found the level above 0 and how long the network took to come back. Deviation from the plan: "bounce every 10 s" became "bounce after every recovery", about one per minute |
 | F8 | partly done | Build and checkpatch above; no `sparse` run |
 | F9 | pass | `decay_timing.sh` on the saved CSV: 0.39 s from the last packet seen at level above 0 to level 0 (expected about 0.4 s or less, +/- 0.1 s); 15 samples saw background packets after the level was 0, which do not take part in the decay |
 | F10 | pass, no regression | adaptive on: 9646, 9435, 9297 transactions per second; adaptive off, same session: 9599 and 9100 (the first off run failed to connect to netserver). The two sets overlap, the spread between runs is about 5 percent |
@@ -59,13 +59,28 @@ So the stall does not depend on adaptive mode, on the restore, or on a nonzero R
 
 Not investigated (outside the scope of the project): whether the stall is the chip not receiving or NAPI not polling. `ip -s link` (`rx_missed_errors`, `rx_fifo_errors`) and the interrupt count in `/proc/interrupts` during the stall would tell the two apart.
 
+## Network delay after a link-up (finding, outside the driver)
+
+`bounce_rx_check.sh` takes the link down for 1 s under a steady 300M UDP load and watches what comes back, with NetworkManager in charge (patched module, adaptive mode on, and the first run also with adaptive mode off for the same module; the first run was meant to be the stock module but the patched one was still loaded):
+
+| Observation | Both runs |
+|---|---|
+| Carrier back after the `ip link set up` | about 4.5 s after the bounce (autonegotiation) |
+| Traffic until 31 s later | none: the PC sent 3 to 4 ARP requests per second, nothing came back, the neighbour entry of the peer went `INCOMPLETE`, `FAILED`, `INCOMPLETE` |
+| TCP to the peer and the UDP stream | both back at 35.4 s, in the same sample, at full rate (27000 packets per second) |
+| Interface counters at the end | no RX errors, no missed packets (one run 21 missed in the 8 s before) |
+
+The identical 35.4 s in both runs, the full-rate resume at once and the ARP requests going out point at the switch port holding traffic for about 30 s after the link comes up (spanning tree listening and learning), not at the NIC. Earlier runs with the stock module (srcversion `A8C76016444D067D3998384`), with NetworkManager switched off and the same static address put back, also showed no traffic for 90 s with both modules alike, so the stall does not depend on the patches. That static-address variant never recovered within 90 s, unlike the managed one; the cause was not investigated, and `stress_f7.sh` no longer uses it.
+
+Consequences: a link bounce under load costs about 35 s of silence on this network, so a stress test cannot bounce every 10 s with traffic in between; and the stall seen in F4b after the forced reset may be the same effect if the MAC reset briefly drops the PHY link without the kernel logging it. That is not proven.
+
 ## Bugs found and fixed during the phase
 
 None yet.
 
 ## Known limits
 
-- A forced reset (the same path as a transmit timeout) under 600M receive load leaves RX dead for 20 s or more on this machine, with adaptive mode on or off; see the finding above.
+- A forced reset (the same path as a transmit timeout) under 600M receive load leaves RX dead for 20 s or more on this machine, with adaptive mode on or off; see the finding above. A link-up on this network takes about 35 s until traffic flows (finding below it), which may be the same effect.
 - A speed change always drops the link for a second or more, so the idle decay has already set the level to 0 when the link returns; the link work (conversion with the new unit) is a safety net for flaps shorter than the decay period and cannot be observed on hardware by changing the speed.
 - After a speed change `INTT` stays as it was chosen, so the steps are coarser or finer than ideal until adaptive mode is turned off and on again.
 - A reset or resume still clears the TX fields of `IntrMitigate` (stock behaviour); only the RX timer is written again.
