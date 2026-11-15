@@ -48,9 +48,27 @@ need_peer() {
 	[ -n "${PEER:-}" ] || { echo "export PEER=<peer address> first" >&2; exit 2; }
 }
 
+# After a link change or a module reload the address and the neighbour entry
+# need a few seconds to come back, and iperf3 then fails with "No route to
+# host" and the test runs without traffic. Wait until the peer answers.
+wait_peer() {
+	local i
+
+	for i in $(seq 1 30); do
+		if iperf3 -c "$PEER" -t 1 >/dev/null 2>&1; then
+			sleep 1
+			return 0
+		fi
+		sleep 1
+	done
+	echo "FAIL: iperf3 cannot reach $PEER after 30 s (is iperf3 -s running, has the link an address?)" >&2
+	return 1
+}
+
 # Start a reverse UDP load from the peer in the background; sets load_pid.
 start_load() {
 	need_peer
+	wait_peer || exit 1
 	iperf3 -c "$PEER" -R -u -b "$1" -t "$2" >/tmp/p3_load.log 2>&1 &
 	load_pid=$!
 }
