@@ -63,10 +63,28 @@ ethtool -C "$dev" adaptive-rx on || {
 	exit 1
 }
 
-# Loads that restart themselves when a link bounce kills them
-(while :; do iperf3 -c "$PEER" -R -u -b 300M -t 30 >/dev/null 2>&1 || sleep 1; done) &
+# Loads that restart themselves when a link bounce kills them. Every round
+# is counted, so that the end of the run shows how much traffic really ran:
+# a stress test with no traffic proves nothing.
+: >/tmp/f7_udp.log
+: >/tmp/f7_rr.log
+(while :; do
+	if iperf3 -c "$PEER" -R -u -b 300M -t 30 >/dev/null 2>&1; then
+		echo ok >>/tmp/f7_udp.log
+	else
+		echo fail >>/tmp/f7_udp.log
+		sleep 1
+	fi
+done) &
 pids="$pids $!"
-(while :; do netperf -H "$PEER" -t TCP_RR -l 30 -P 0 -- -r 64,64 >/dev/null 2>&1 || sleep 1; done) &
+(while :; do
+	if out=$(netperf -H "$PEER" -t TCP_RR -l 30 -P 0 -- -r 64,64 2>/dev/null); then
+		echo "ok $(echo "$out" | head -n 1 | awk '{print $NF}')" >>/tmp/f7_rr.log
+	else
+		echo fail >>/tmp/f7_rr.log
+		sleep 1
+	fi
+done) &
 pids="$pids $!"
 
 # Toggle adaptive mode every 100 ms
@@ -113,6 +131,9 @@ done
 
 cleanup
 pids=""
+echo "== traffic that ran during the test"
+echo "UDP rounds (30 s each, a round that was cut by a link bounce counts as failed): ok $(grep -c '^ok' /tmp/f7_udp.log || true), failed $(grep -c '^fail' /tmp/f7_udp.log || true)"
+echo "TCP_RR rounds: ok $(grep -c '^ok' /tmp/f7_rr.log || true), failed $(grep -c '^fail' /tmp/f7_rr.log || true), last transaction rate: $(grep '^ok' /tmp/f7_rr.log | tail -n 1 | cut -d' ' -f2)"
 ethtool -C "$dev" adaptive-rx off || true
 echo "== state log in $log, last lines:"
 tail -n 3 "$log"
