@@ -9,9 +9,12 @@
 # usage: phase3_tests.sh DEV TEST [ARG]
 #
 #   f4 [N]      N times (default 10): interface down, up, read the registers
-#   f4b         run the reset task under load (needs the force_reset test hook)
+#   f4b         run the reset task under load (needs the force_reset test hook);
+#               samples the level and the packet counter for 5 s afterwards
 #   f5          link speed change to 100 Mbit/s and back, under load
-#               (rate with F5_RATE, default 95M)
+#               (F5_RATE, default 95M, and F5_LEN, default 64 byte payloads:
+#               at 100 Mbit/s large packets are too few per second for DIM
+#               to leave level 0, small ones are not)
 #   f9          idle decay: time from the end of a UDP load to level 0
 #   f10         sparse request-response traffic right after a burst
 #   f11 [SECS]  concurrent ethtool changes while the load runs (default 60)
@@ -28,6 +31,7 @@ dev=${1:-}
 test_name=${2:-}
 arg=${3:-}
 f5_rate=${F5_RATE:-95M}
+f5_len=${F5_LEN:-64}
 
 usage() {
 	sed -n '/^# usage:/,/^# BUG and Oops/p' "$0" | sed 's/^# \{0,1\}//' >&2
@@ -69,7 +73,7 @@ wait_peer() {
 start_load() {
 	need_peer
 	wait_peer || exit 1
-	iperf3 -c "$PEER" -R -u -b "$1" -t "$2" >/tmp/p3_load.log 2>&1 &
+	iperf3 -c "$PEER" -R -u -b "$1" -t "$2" ${3:+-l "$3"} >/tmp/p3_load.log 2>&1 &
 	load_pid=$!
 }
 
@@ -150,21 +154,32 @@ f4b)
 	[ -e /sys/kernel/debug/r8169_force_reset ] ||
 		{ echo "no /sys/kernel/debug/r8169_force_reset: build with scripts/test-hooks/force_reset.patch" >&2; exit 1; }
 	m=$(mark)
+	echo 'module r8169 +p' >/sys/kernel/debug/dynamic_debug/control
 	adaptive_on
-	start_load 600M 40
+	start_load 600M 30
 	if wait_level_up 15; then
 		echo "== before the reset (level above 0)"
 		regs
+		csv=/tmp/f4b_samples.csv
+		echo "t_after_reset,rx_packets,rx_timer" >"$csv"
+		t0=$(date +%s.%N)
 		echo 1 >/sys/kernel/debug/r8169_force_reset
-		for d in 0.05 0.3 1.0; do
-			sleep "$d"
-			echo "== ${d}s after the reset"
-			regs
+		end=$(($(date +%s) + 5))
+		while [ "$(date +%s)" -lt "$end" ]; do
+			now=$(date +%s.%N)
+			printf '%.2f,%s,%s\n' "$(echo "$now - $t0" | bc)" \
+				"$(cat "/sys/class/net/$dev/statistics/rx_packets")" "$(timer_field)" >>"$csv"
 		done
+		echo "== after the reset: time, rx_packets, RX timer field (every 0.1 s, in $csv)"
+		cat "$csv"
 	else
-		echo "the level never rose above 0, no reset done" >&2
+		echo "FAIL: the level never rose above 0, no reset done" >&2
 	fi
 	end_load
+	echo "== kernel messages about the restore and the DIM levels (first 40)"
+	journalctl -k --since "@$m" --no-pager | grep -E 'TEST restore|rx dim' | head -n 40 || true
+	echo "== load report (per second, look at the second of the reset)"
+	grep -E '^\[ +5\] +[0-9]' /tmp/p3_load.log | head -n 12
 	report "$m"
 	;;
 f5)
@@ -184,9 +199,9 @@ f5)
 	ethtool "$dev" | grep -E 'Speed|Duplex'
 	ethtool -c "$dev" | grep -E 'Adaptive RX|rx-usecs'
 	regs
-	start_load "$f5_rate" 10
+	start_load "$f5_rate" 10 "$f5_len"
 	sleep 6
-	echo "== 100 Mbit/s, $f5_rate UDP load, level"
+	echo "== 100 Mbit/s, $f5_rate UDP load with $f5_len byte payloads, level"
 	ethtool -c "$dev" | grep -E 'rx-usecs'
 	regs
 	[ "$(timer_field)" -gt 0 ] ||

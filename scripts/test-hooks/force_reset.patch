@@ -1,4 +1,4 @@
-From 126f25dd93ed9bf6ceefe8784c07920055f296dd Mon Sep 17 00:00:00 2001
+From 2759b3a68de2347adf623e42a40c6653124f9aed Mon Sep 17 00:00:00 2001
 From: Dhruv Rakeshbhai Patel <dpatel5469@gmail.com>
 Date: Sat, 14 Nov 2026 12:06:28 +0000
 Subject: [PATCH] r8169: add a debugfs hook to force the reset task (test only)
@@ -6,18 +6,19 @@ Subject: [PATCH] r8169: add a debugfs hook to force the reset task (test only)
 Phase 3 has to check that the DIM level is written again after the
 reset task, which a transmit timeout or a PCI error runs and which
 cannot be triggered on demand. A write to
-/sys/kernel/debug/r8169_force_reset schedules the same reset.
+/sys/kernel/debug/r8169_force_reset schedules the same reset, and the
+restore step logs the level and the IntrMitigate value it wrote.
 
 This is a test aid and is not part of the patch series. It applies on
 top of patches 0001 to 0006.
 
 Co-authored-by: Claude <noreply@anthropic.com>
 ---
- drivers/net/ethernet/realtek/r8169_main.c | 21 +++++++++++++++++++++
- 1 file changed, 21 insertions(+)
+ drivers/net/ethernet/realtek/r8169_main.c | 24 +++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
 
 diff --git a/drivers/net/ethernet/realtek/r8169_main.c b/drivers/net/ethernet/realtek/r8169_main.c
-index 7723abbf0..8fd547dd8 100644
+index 7723abbf0..f3ffc5a8f 100644
 --- a/drivers/net/ethernet/realtek/r8169_main.c
 +++ b/drivers/net/ethernet/realtek/r8169_main.c
 @@ -30,6 +30,7 @@
@@ -28,7 +29,17 @@ index 7723abbf0..8fd547dd8 100644
  #include <net/ip6_checksum.h>
  #include <net/netdev_queues.h>
  #include <net/phy/realtek_phy.h>
-@@ -5327,6 +5328,22 @@ static int r8169_phy_connect(struct rtl8169_private *tp)
+@@ -2242,6 +2243,9 @@ static void rtl_rx_dim_restore(struct rtl8169_private *tp)
+ 		/* The poll counters go on from where they were */
+ 		tp->rx_dim.state = DIM_START_MEASURE;
+ 		rtl_rx_dim_apply(tp, READ_ONCE(tp->rx_dim.profile_ix));
++		netdev_info(tp->dev, "TEST restore: level %u, IntrMitigate 0x%04x\n",
++			    READ_ONCE(tp->rx_dim.profile_ix),
++			    RTL_R16(tp, IntrMitigate));
+ 		rtl_rx_dim_arm_decay(tp);
+ 	}
+ 	mutex_unlock(&tp->rx_dim_lock);
+@@ -5327,6 +5331,22 @@ static int r8169_phy_connect(struct rtl8169_private *tp)
  	return 0;
  }
  
@@ -51,7 +62,7 @@ index 7723abbf0..8fd547dd8 100644
  static void rtl8169_down(struct rtl8169_private *tp)
  {
  	disable_work_sync(&tp->wk.work);
-@@ -5621,6 +5638,8 @@ static void rtl_remove_one(struct pci_dev *pdev)
+@@ -5621,6 +5641,8 @@ static void rtl_remove_one(struct pci_dev *pdev)
  
  	disable_work_sync(&tp->wk.work);
  
@@ -60,7 +71,7 @@ index 7723abbf0..8fd547dd8 100644
  	if (IS_ENABLED(CONFIG_R8169_LEDS))
  		r8169_remove_leds(tp->leds);
  
-@@ -6058,6 +6077,8 @@ static int rtl_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
+@@ -6058,6 +6080,8 @@ static int rtl_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
  	tp->irq = pci_irq_vector(pdev, 0);
  
  	INIT_WORK(&tp->wk.work, rtl_task);
