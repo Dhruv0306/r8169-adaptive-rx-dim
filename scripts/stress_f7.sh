@@ -55,6 +55,7 @@ cleanup() {
 		nmcli dev set "$dev" managed yes || true
 		nm_off=0
 	fi
+	rm -f /tmp/f7_pause
 }
 trap cleanup EXIT
 
@@ -84,6 +85,8 @@ level_now() {
 
 bounces=0
 bounces_up=0
+quiet_bounces=0
+quiet_up=0
 reload_up=0
 
 # A state check: with adaptive mode on, PktCntrDisable must be set and the
@@ -140,8 +143,17 @@ pids="$pids $!"
 done) &
 pids="$pids $!"
 
-# Toggle adaptive mode every 100 ms
+# Toggle adaptive mode every 100 ms. With the mode flipping that often DIM
+# never has time to climb, so the level is nearly always 0 and a bounce would
+# never find the decay work armed. In every other round the toggling is
+# paused for a moment before the bounce (the pause file) so that DIM can
+# reach a level; the rounds in between bounce while the toggling runs.
+rm -f /tmp/f7_pause
 (while :; do
+	if [ -e /tmp/f7_pause ]; then
+		sleep 0.1
+		continue
+	fi
 	ethtool -C "$dev" adaptive-rx off >/dev/null 2>&1 || true
 	sleep 0.1
 	ethtool -C "$dev" adaptive-rx on >/dev/null 2>&1 || true
@@ -155,15 +167,27 @@ round=0
 while [ "$(date +%s)" -lt "$end" ]; do
 	sleep 10
 	round=$((round + 1))
+	quiet=0
+	if [ $((round % 2)) = 0 ]; then
+		quiet=1
+		touch /tmp/f7_pause
+		sleep 0.3
+		ethtool -C "$dev" adaptive-rx on >/dev/null 2>&1 || true
+		sleep 1.5
+	fi
 	lvl=$(level_now || true)
-	bounces=$((bounces + 1))
-	if [ "${lvl:-0}" -gt 0 ]; then
-		bounces_up=$((bounces_up + 1))
+	if [ "$quiet" = 1 ]; then
+		quiet_bounces=$((quiet_bounces + 1))
+		[ "${lvl:-0}" -gt 0 ] && quiet_up=$((quiet_up + 1))
+	else
+		bounces=$((bounces + 1))
+		[ "${lvl:-0}" -gt 0 ] && bounces_up=$((bounces_up + 1))
 	fi
 	ip link set "$dev" down
 	sleep 1
 	ip link set "$dev" up
 	ip addr replace "$addr" dev "$dev"
+	rm -f /tmp/f7_pause
 	echo "round $round: link bounced at $(date +%T)"
 done
 
@@ -197,7 +221,8 @@ cleanup
 pids=""
 echo "== traffic that ran during the test"
 echo "UDP rounds (2 s each; a round cut by a link bounce or started while the address is missing counts as failed): ok $(grep -c '^ok' /tmp/f7_udp.log || true), failed $(grep -c '^fail' /tmp/f7_udp.log || true)"
-echo "link bounces with the RX level above 0 (the teardown ran with the decay work armed): $bounces_up of $bounces"
+echo "link bounces with the toggling paused and the RX level above 0 (teardown with the decay work armed): $quiet_up of $quiet_bounces"
+echo "link bounces during the toggling with the RX level above 0: $bounces_up of $bounces"
 echo "module reloads with the RX level above 0: $reload_up of $i"
 echo "TCP_RR rounds: ok $(grep -c '^ok' /tmp/f7_rr.log || true), failed $(grep -c '^fail' /tmp/f7_rr.log || true), last transaction rate: $(grep '^ok' /tmp/f7_rr.log | tail -n 1 | cut -d' ' -f2)"
 ethtool -C "$dev" adaptive-rx off || true
