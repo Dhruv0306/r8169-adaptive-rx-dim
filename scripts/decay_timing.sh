@@ -7,21 +7,27 @@
 # the idle window shows up as a later "last packet" instead of as a slow
 # decay. Run as root from the repository root with the patched module loaded.
 #
-# usage: decay_timing.sh DEV
+# usage: decay_timing.sh DEV [CSV]
 #
 # Needs PEER=<address of the machine running iperf3 -s>. Writes the samples
 # to /tmp/decay_timing.csv (time, rx_packets, rx_timer field). One register
-# read takes about 0.1 s, which is the resolution of the result.
+# read takes about 0.1 s, which is the resolution of the result. With a
+# second argument nothing is measured: the CSV of an earlier run is analysed
+# again.
+#
+# "Last packet" means the last packet that arrived while the level was above
+# 0. A packet that arrives after the level fell to 0 (an ARP request, a
+# broadcast) is not shown to DIM at level 0 and has nothing to do with the
+# decay, so it is counted separately.
 
 set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
 dev=${1:-}
 sys_net=${SYS_NET:-/sys/class/net}
-csv=/tmp/decay_timing.csv
+csv=${2:-/tmp/decay_timing.csv}
 
-[ -n "$dev" ] || { sed -n '/^# usage:/,/^# read takes/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
-[ -n "${PEER:-}" ] || { echo "export PEER=<peer address> first" >&2; exit 2; }
+[ -n "$dev" ] || { sed -n '/^# usage:/,/^# decay\./p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
 sample() {
 	local t pk f
@@ -32,6 +38,8 @@ sample() {
 	echo "$t,$pk,$f" >>"$csv"
 }
 
+if [ -z "${2:-}" ]; then
+[ -n "${PEER:-}" ] || { echo "export PEER=<peer address> first" >&2; exit 2; }
 if ! err=$(ethtool -C "$dev" adaptive-rx on 2>&1); then
 	echo "FAIL: ethtool refused adaptive-rx on: $err" >&2
 	exit 1
@@ -49,17 +57,22 @@ end=$(($(date +%s) + 4))
 while [ "$(date +%s)" -lt "$end" ]; do
 	sample
 done
+fi
 
 awk -F, '
 NR == 1 { next }
 {
-	if (seen && $2 != prev)
-		last = $1
+	changed = (seen && $2 != prev)
 	if ($3 > 0) {
 		up = 1
 		zero = 0
-	} else if (!zero) {
-		zero = $1
+		if (changed)
+			lastup = $1
+	} else {
+		if (!zero)
+			zero = $1
+		if (changed)
+			after++
 	}
 	prev = $2
 	seen = 1
@@ -73,5 +86,6 @@ END {
 		print "FAIL: the level was still above 0 at the end of the samples"
 		exit 1
 	}
-	printf "last packet to level 0: %.2f s (expected about 0.4 s or less, resolution about 0.1 s)\n", zero - last
+	printf "last packet at level above 0 to level 0: %.2f s (expected about 0.4 s or less, +/- 0.1 s)\n", zero - lastup
+	printf "samples that saw new packets after the level was 0: %d (background traffic, not part of the decay)\n", after
 }' "$csv"
