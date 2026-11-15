@@ -49,8 +49,17 @@ need_peer() {
 # Start a reverse UDP load from the peer in the background; sets load_pid.
 start_load() {
 	need_peer
-	iperf3 -c "$PEER" -R -u -b "$1" -t "$2" >/dev/null 2>&1 &
+	iperf3 -c "$PEER" -R -u -b "$1" -t "$2" >/tmp/p3_load.log 2>&1 &
 	load_pid=$!
+}
+
+# Wait for the load to end; say so if iperf3 failed (for example when the
+# server on the peer is busy), because then nothing was tested.
+end_load() {
+	if ! wait "$load_pid"; then
+		echo "WARNING: the load failed, this test did not run under traffic:" >&2
+		tail -n 3 /tmp/p3_load.log >&2
+	fi
 }
 
 # Wait until the RX timer field is above 0, at most $1 seconds.
@@ -65,21 +74,26 @@ wait_level_up() {
 	return 1
 }
 
+# The start time, as seconds since the epoch. The kernel log is read by time
+# and not by line count, because a full ring buffer makes line counts useless.
 mark() {
-	dmesg | wc -l
+	date +%s
 }
 
-# Print what the kernel logged since mark() returned $1.
+# Print what the kernel logged since mark() returned $1: link messages are
+# summarised, anything about lockdep, WARNING, BUG or Oops is shown.
 report() {
-	local found
+	local log found links
 
-	found=$(dmesg | tail -n +"$(($1 + 1))" |
-		grep -iE 'lockdep|WARNING:|BUG:|Oops|possible circular|possible recursive|r8169' || true)
-	echo "--- dmesg since the start of the test (r8169, lockdep, WARNING, BUG, Oops) ---"
+	log=$(journalctl -k --since "@$1" --no-pager 2>/dev/null || dmesg)
+	links=$(echo "$log" | grep -ciE 'link is (up|down)' || true)
+	found=$(echo "$log" |
+		grep -iE 'lockdep|WARNING:|BUG:|Oops|possible circular|possible recursive' || true)
+	echo "--- kernel log since the start of the test: $links link up/down lines ---"
 	if [ -n "$found" ]; then
 		echo "$found"
 	else
-		echo "(nothing)"
+		echo "(no lockdep, WARNING, BUG or Oops)"
 	fi
 }
 
@@ -120,7 +134,7 @@ f4b)
 	else
 		echo "the level never rose above 0, no reset done" >&2
 	fi
-	wait "$load_pid" || true
+	end_load
 	report "$m"
 	;;
 f5)
@@ -145,7 +159,9 @@ f5)
 	echo "== 100 Mbit/s, 80M UDP load, level"
 	ethtool -c "$dev" | grep -E 'rx-usecs'
 	regs
-	wait "$load_pid" || true
+	[ "$(timer_field)" -gt 0 ] ||
+		echo "NOTE: the level stayed at 0 under this load, so the unit conversion was not exercised; try a higher rate"
+	end_load
 	ethtool -s "$dev" advertise 0x02f
 	for i in $(seq 1 40); do
 		ethtool "$dev" | grep -q 'Speed: 1000Mb/s' && break
@@ -162,10 +178,15 @@ f9)
 	m=$(mark)
 	adaptive_on
 	start_load 600M 15
-	wait_level_up 10 || echo "the level never rose above 0" >&2
+	if ! wait_level_up 10; then
+		echo "FAIL: the level never rose above 0, the decay was not tested" >&2
+		end_load
+		report "$m"
+		exit 1
+	fi
 	echo "== under load"
 	regs
-	wait "$load_pid" || true
+	end_load
 	t0=$(date +%s.%N)
 	while [ "$(timer_field)" -gt 0 ]; do
 		now=$(date +%s.%N)
@@ -188,7 +209,7 @@ f10)
 	m=$(mark)
 	adaptive_on
 	start_load 600M 10
-	wait "$load_pid" || true
+	end_load
 	sleep 2
 	echo "== level before the sparse traffic"
 	regs
@@ -218,12 +239,12 @@ f11)
 	) &
 	b=$!
 	wait "$a" "$b" || true
-	wait "$load_pid" || true
+	end_load
 	echo "== after the toggling"
 	ethtool -c "$dev" | grep -E 'Adaptive RX|tx-usecs|rx-usecs'
 	regs
 	ethtool -C "$dev" adaptive-rx on tx-usecs 20
-	echo "== adaptive on, tx-usecs 20 (the TX timer must read 20, PktCntrDisable must be 1)"
+	echo "== adaptive on, tx-usecs 20 (the TX timer reads 40: 20 us rounds up to one 40 us unit; PktCntrDisable must be 1)"
 	ethtool -c "$dev" | grep -E 'Adaptive RX|tx-usecs'
 	regs
 	ethtool -C "$dev" adaptive-rx off tx-usecs 0

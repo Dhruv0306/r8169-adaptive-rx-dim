@@ -30,7 +30,7 @@ ko=${4:-/root/r8169-new-signed.ko}
 [ -n "${PEER:-}" ] || { echo "export PEER=<peer address> first" >&2; exit 2; }
 
 log=/root/stress_f7.log
-m=$(dmesg | wc -l)
+m=$(date +%s)
 pids=""
 
 cleanup() {
@@ -112,7 +112,8 @@ pids=""
 ethtool -C "$dev" adaptive-rx off || true
 echo "== state log in $log, last lines:"
 tail -n 3 "$log"
-echo "--- dmesg since the start (r8169, lockdep, WARNING, BUG, Oops) ---"
-found=$(dmesg | tail -n +"$((m + 1))" |
-	grep -iE 'lockdep|WARNING:|BUG:|Oops|possible circular|possible recursive|r8169' || true)
-[ -n "$found" ] && echo "$found" || echo "(nothing)"
+log_k=$(journalctl -k --since "@$m" --no-pager 2>/dev/null || dmesg)
+echo "--- kernel log since the start: $(echo "$log_k" | grep -ciE 'link is (up|down)' || true) link up/down lines ---"
+found=$(echo "$log_k" |
+	grep -iE 'lockdep|WARNING:|BUG:|Oops|possible circular|possible recursive' || true)
+[ -n "$found" ] && echo "$found" || echo "(no lockdep, WARNING, BUG or Oops)"
