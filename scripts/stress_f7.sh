@@ -41,6 +41,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# The RX timer field now; above 0 means DIM has a level and the decay work is armed.
+level_now() {
+	bash "$here/read_intrmit.sh" "$dev" 2>/dev/null | sed -n 's/.*rx_timer=\([0-9]*\).*/\1/p'
+}
+
+bounces=0
+bounces_up=0
+reload_up=0
+
 # A state check: with adaptive mode on, PktCntrDisable must be set and the
 # RX frame limit must be 0. Prints INCONSISTENT otherwise.
 check_state() {
@@ -63,13 +72,15 @@ ethtool -C "$dev" adaptive-rx on || {
 	exit 1
 }
 
-# Loads that restart themselves when a link bounce kills them. Every round
-# is counted, so that the end of the run shows how much traffic really ran:
-# a stress test with no traffic proves nothing.
+# Loads that restart themselves when a link bounce kills them. A bounce takes
+# the address away for a few seconds, so a round that lasts 30 s never ends:
+# the rounds are 2 s, and every round is counted, so that the end of the run
+# shows how much traffic really ran. A stress test with no traffic proves
+# nothing.
 : >/tmp/f7_udp.log
 : >/tmp/f7_rr.log
 (while :; do
-	if iperf3 -c "$PEER" -R -u -b 300M -t 30 >/dev/null 2>&1; then
+	if iperf3 -c "$PEER" -R -u -b 300M -t 2 >/dev/null 2>&1; then
 		echo ok >>/tmp/f7_udp.log
 	else
 		echo fail >>/tmp/f7_udp.log
@@ -78,7 +89,7 @@ ethtool -C "$dev" adaptive-rx on || {
 done) &
 pids="$pids $!"
 (while :; do
-	if out=$(netperf -H "$PEER" -t TCP_RR -l 30 -P 0 -- -r 64,64 2>/dev/null); then
+	if out=$(netperf -H "$PEER" -t TCP_RR -l 2 -P 0 -- -r 64,64 2>/dev/null); then
 		echo "ok $(echo "$out" | head -n 1 | awk '{print $NF}')" >>/tmp/f7_rr.log
 	else
 		echo fail >>/tmp/f7_rr.log
@@ -102,6 +113,11 @@ round=0
 while [ "$(date +%s)" -lt "$end" ]; do
 	sleep 10
 	round=$((round + 1))
+	lvl=$(level_now || true)
+	bounces=$((bounces + 1))
+	if [ "${lvl:-0}" -gt 0 ]; then
+		bounces_up=$((bounces_up + 1))
+	fi
 	ip link set "$dev" down
 	sleep 1
 	ip link set "$dev" up
@@ -120,6 +136,10 @@ bash "$here/read_intrmit.sh" "$dev"
 i=0
 while [ "$i" -lt "$reloads" ]; do
 	i=$((i + 1))
+	lvl=$(level_now || true)
+	if [ "${lvl:-0}" -gt 0 ]; then
+		reload_up=$((reload_up + 1))
+	fi
 	rmmod r8169
 	insmod "$ko"
 	ip link set "$dev" up 2>/dev/null || true
@@ -132,7 +152,9 @@ done
 cleanup
 pids=""
 echo "== traffic that ran during the test"
-echo "UDP rounds (30 s each, a round that was cut by a link bounce counts as failed): ok $(grep -c '^ok' /tmp/f7_udp.log || true), failed $(grep -c '^fail' /tmp/f7_udp.log || true)"
+echo "UDP rounds (2 s each; a round cut by a link bounce or started while the address is missing counts as failed): ok $(grep -c '^ok' /tmp/f7_udp.log || true), failed $(grep -c '^fail' /tmp/f7_udp.log || true)"
+echo "link bounces with the RX level above 0 (the teardown ran with the decay work armed): $bounces_up of $bounces"
+echo "module reloads with the RX level above 0: $reload_up of $i"
 echo "TCP_RR rounds: ok $(grep -c '^ok' /tmp/f7_rr.log || true), failed $(grep -c '^fail' /tmp/f7_rr.log || true), last transaction rate: $(grep '^ok' /tmp/f7_rr.log | tail -n 1 | cut -d' ' -f2)"
 ethtool -C "$dev" adaptive-rx off || true
 echo "== state log in $log, last lines:"
