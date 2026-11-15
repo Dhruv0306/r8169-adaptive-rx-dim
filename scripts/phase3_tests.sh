@@ -10,7 +10,9 @@
 #
 #   f4 [N]      N times (default 10): interface down, up, read the registers
 #   f4b         run the reset task under load (needs the force_reset test hook);
-#               samples the level and the packet counter for 5 s afterwards
+#               samples the level and the packet counter for 5 s afterwards;
+#               F4B_ADAPTIVE=off runs it with adaptive mode off (no DIM, no
+#               restore), to see whether RX survives the reset by itself
 #   f5          link speed change to 100 Mbit/s and back, under load
 #               (F5_RATE, default 95M, and F5_LEN, default 64 byte payloads:
 #               at 100 Mbit/s large packets are too few per second for DIM
@@ -153,12 +155,21 @@ f4)
 f4b)
 	[ -e /sys/kernel/debug/r8169_force_reset ] ||
 		{ echo "no /sys/kernel/debug/r8169_force_reset: build with scripts/test-hooks/force_reset.patch" >&2; exit 1; }
+	mode=${F4B_ADAPTIVE:-on}
 	m=$(mark)
 	echo 'module r8169 +p' >/sys/kernel/debug/dynamic_debug/control
-	adaptive_on
-	start_load 600M 30
-	if wait_level_up 15; then
-		echo "== before the reset (level above 0)"
+	if [ "$mode" = off ]; then
+		ethtool -C "$dev" adaptive-rx off
+		start_load 600M 30
+		sleep 4
+		ok=1
+	else
+		adaptive_on
+		start_load 600M 30
+		wait_level_up 15 && ok=1 || ok=0
+	fi
+	if [ "$ok" = 1 ]; then
+		echo "== before the reset (adaptive $mode)"
 		regs
 		csv=/tmp/f4b_samples.csv
 		echo "t_after_reset,rx_packets,rx_timer" >"$csv"
@@ -170,16 +181,27 @@ f4b)
 			printf '%.2f,%s,%s\n' "$(echo "$now - $t0" | bc)" \
 				"$(cat "/sys/class/net/$dev/statistics/rx_packets")" "$(timer_field)" >>"$csv"
 		done
-		echo "== after the reset: time, rx_packets, RX timer field (every 0.1 s, in $csv)"
-		cat "$csv"
+		echo "== after the reset: lines where rx_packets or the RX timer field changed (all samples in $csv)"
+		awk -F, 'NR == 1 || NR == 2 || $2 != pp || $3 != pt { print } { pp = $2; pt = $3; last = $0 } END { print last }' "$csv"
+		if [ "$mode" = on ]; then
+			echo "== recovery probe: adaptive-rx off, does RX resume?"
+			ethtool -C "$dev" adaptive-rx off
+			echo "t,rx_packets" >/tmp/f4b_probe.csv
+			end=$(($(date +%s) + 2))
+			while [ "$(date +%s)" -lt "$end" ]; do
+				echo "$(date +%s.%N),$(cat "/sys/class/net/$dev/statistics/rx_packets")" >>/tmp/f4b_probe.csv
+				sleep 0.2
+			done
+			awk -F, 'NR == 2 || $2 != pp { print } { pp = $2; last = $0 } END { print last }' /tmp/f4b_probe.csv
+		fi
 	else
 		echo "FAIL: the level never rose above 0, no reset done" >&2
 	fi
 	end_load
-	echo "== kernel messages about the restore and the DIM levels (first 40)"
-	journalctl -k --since "@$m" --no-pager | grep -E 'TEST restore|rx dim' | head -n 40 || true
-	echo "== load report (per second, look at the second of the reset)"
-	grep -E '^\[ +5\] +[0-9]' /tmp/p3_load.log | head -n 12
+	echo "== kernel messages about the restore and the DIM levels (last 20)"
+	journalctl -k --since "@$m" --no-pager | grep -E 'TEST restore|rx dim' | tail -n 20 || true
+	echo "== load report (per second, all of it: look for the second the data stops and whether it comes back)"
+	grep -E '^\[ +5\] +[0-9]' /tmp/p3_load.log
 	report "$m"
 	;;
 f5)
