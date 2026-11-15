@@ -1,6 +1,6 @@
 # Plan for Phase 3: Robustness and locking
 
-Status: not started. Depends on Phase 2. High-level summary: [`../phases.md`](../phases.md), Phase 3. Results go in `docs/results/phase_3_robustness.md`, and the locking analysis in `docs/locking.md`.
+Status: done (2026-11-15). Results: [`../results/phase_3_robustness.md`](../results/phase_3_robustness.md). Two changes to section 5 came out of the tests: F7 bounces after every recovery, about once a minute, instead of every 10 s (the switch port forwards nothing for about 35 s after a link-up), and F5 uses 64 byte payloads at 100 Mbit/s (1470 byte packets are too few per second for DIM to leave level 0). Depends on Phase 2. High-level summary: [`../phases.md`](../phases.md), Phase 3. Results go in `docs/results/phase_3_robustness.md`, and the locking analysis in `docs/locking.md`.
 
 Machine tags: **[Claude]** work in the chat, **[PC]** machine under test (root, at the console), **[PEER]** second machine, **[repo]** project repository. Set `PEER=<peer address>` first.
 
