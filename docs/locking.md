@@ -62,7 +62,9 @@ Writers of `CPlusCmd` are `rtl_set_coalesce()` (through `rtl_write_coalesce()`),
 | Cancelling the work items in `rtl8169_down()` under RTNL | F4 (10 down/up), F7 (20 reloads), F6 (suspend) |
 | Decay work and DIM work running together | F9, F4b (the decay fired right after a restart) |
 
-The 20 reloads and the suspend ran with adaptive mode on. Whether the decay work was armed at those moments depends on the traffic of the run, which is why `stress_f7.sh` now counts the traffic rounds.
+The final F7 run (15 minutes of bounces, then 20 reloads, with the 100 ms ethtool toggling running most of the time) found the RX level above 0 at all 9 bounces with the toggling paused and at 19 of the 20 reloads, so `rtl8169_down()` cancelled an armed decay work and a pending DIM work many times, under lockdep, with no report and no hang. The 10 bounces during the toggling raced the ethtool path against the teardown with the level at 0 (the mode flips too fast for DIM to climb).
+
+Checked against the final patch: yes. Patch 0006 did not change after the text and the tests above were written.
 
 ## 5. What the tests had to show (Phase 3)
 

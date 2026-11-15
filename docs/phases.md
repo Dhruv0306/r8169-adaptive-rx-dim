@@ -211,6 +211,6 @@ Update this table when a phase finishes, and link its results file. Planned date
 | 0 | | 2026-11-11 | Done. Machine facts, source reading and register check, validated benchmark script, and four baseline runs (stock, patched-off, static-50us, static-200us). [Results](results/phase_0_environment_and_baseline.md) |
 | 1 | | 2026-11-10 | Done. Patches 0001 and 0002 built, signed and loaded. [Results](results/phase_1_plumbing.md) |
 | 2 | | 2026-11-14 | Done. Patches 0003, 0004 and 0005 built, signed and loaded; T1 to T11 pass (T5 needed the single-packet guard, patch 0005). Open item for Phase 4: 900M UDP dwells at low levels in some runs. [Results](results/phase_2_adaptive_core.md) |
-| 3 | | | |
+| 3 | | 2026-11-15 | Done. Patch 0006 (re-apply after hardware start, link change, idle decay, teardown) built, signed and loaded; F4 to F7 and F9 to F11 pass with no lockdep report (F7 with the bounce interval changed to one per recovery). Two findings outside the driver for Phase 4 and the report: a link-up takes about 35 s until traffic flows on this network, and a forced reset under load leaves RX dead for 20 s or more with adaptive mode off too. [Results](results/phase_3_robustness.md), [locking notes](locking.md) |
 | 4 | | | |
 | 5 | | | |
