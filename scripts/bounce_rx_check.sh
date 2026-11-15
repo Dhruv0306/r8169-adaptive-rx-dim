@@ -72,11 +72,20 @@ if [ "$nm_mode" = unmanaged ] && command -v nmcli >/dev/null 2>&1; then
 	ip addr replace "$addr" dev "$dev" || true
 fi
 echo "NetworkManager: $nm_mode"
+reached=0
 for _ in $(seq 1 30); do
-	iperf3 -c "$PEER" -t 1 >/dev/null 2>&1 && break
+	if err=$(iperf3 -c "$PEER" -t 1 2>&1); then
+		reached=1
+		break
+	fi
 	sleep 1
 done
-iperf3 -c "$PEER" -t 1 >/dev/null 2>&1 || { echo "FAIL: iperf3 cannot reach $PEER" >&2; exit 1; }
+if [ "$reached" = 0 ]; then
+	echo "FAIL: iperf3 cannot use $PEER, the last error was:" >&2
+	echo "  $(echo "$err" | tail -n 1)" >&2
+	echo "On the peer: pkill iperf3; iperf3 -s   (a server that is still busy with an abandoned test refuses every client)" >&2
+	exit 1
+fi
 sleep 2
 
 iperf3 -c "$PEER" -R -u -b 300M -t 45 >/tmp/bounce_load.log 2>&1 &
