@@ -1,6 +1,6 @@
 # Phase 3: Robustness and locking
 
-Status: in progress (started 2026-11-14). Patch 0006 is written, builds and was loaded on the PC. The table below shows what was measured; F4b (RX stops after the forced reset; the cause is being separated) is still to do. F5 and F9 are done.
+Status: in progress (started 2026-11-14). Patch 0006 is written, builds and was loaded on the PC. The table below shows what was measured; F7 has to be rerun with the traffic counted. F4b to F6 and F9 to F11 are done.
 
 Plan: [`../plans/plan-3-robustness.md`](../plans/plan-3-robustness.md). Locking analysis: [`../locking.md`](../locking.md).
 
@@ -35,10 +35,10 @@ Commands are in the plan, section 5; `scripts/phase3_tests.sh DEV TEST` runs F4,
 | # | Result | Evidence |
 |---|---|---|
 | F4 | pass | 10 down/up rounds with adaptive on: after every `up`, `CPlusCmd 0x20e1` (`INTT=1`, `PktCntrDisable=1`) and `IntrMitigate 0x0000` (level 0) |
-| F4b | RX stops after the forced reset, cause open | with the hook and 600M UDP load: `TEST restore: level 4, IntrMitigate 0x00a0` was logged, so the restore ran and wrote the level; then `rx dim: idle, level 0` followed because no poll happened. `rx_packets` stayed at 23052 from 0.01 s after the reset to the end of the 5 s of samples, and the iperf3 receiver saw 169 Mbit/s in the first second and 0 bytes in every later second. No lockdep, `WARNING`, `BUG` or `Oops`. The level reading 0 was therefore a consequence of the stall, not a failure of the restore. Open: whether the stock reset path stalls RX on this NIC under load, or whether writing a nonzero RX timer just before `rtl_irq_enable()` causes it. Next runs: the same reset with adaptive mode off (`F4B_ADAPTIVE=off`), and the recovery probe that turns adaptive off after the stall |
+| F4b | pass at the register level; RX stall found, not caused by 0006 | with the hook and 600M UDP load at level 4: the kernel log shows `TEST restore: level 4, IntrMitigate 0x00a0` right after the reset, so the level was written again and the register was not left at 0. The same forced reset with adaptive mode off (no DIM, no restore) stops RX in the same way, see "RX stops after a forced reset" below. No lockdep, `WARNING`, `BUG` or `Oops` in either run |
 | F5 | pass for the unit at 100 Mbit/s; the link work itself is not separately visible | 1000, 100, 1000 Mbit/s, no lockdep. At 100 Mbit/s under a 90M load of 64 byte payloads the level rose to `rx-usecs: 82` with `IntrMitigate 0x0040` (`rx_timer=4`): 4 units of 20.48 us, level 2 at the 100 Mbit/s unit, so the conversion is right. After the link returned to 1000 Mbit/s the registers read `IntrMitigate 0x0000` and `Adaptive RX: on`. The level reaches 0 while the link is down (decay), so the link work normally finds level 0 when the link comes up |
 | F6 | pass | `rtcwake -m mem -s 30`: the machine resumed with the link up, `Adaptive RX: on` was kept, `IntrMitigate` read `0x0000` right after resume, and under 600M UDP the timer fields 5 and 10 appeared (3 and 20 samples at 0.5 s); no lockdep, `WARNING`, `BUG` or `Oops` in `journalctl -k` since before the suspend |
-| F7 | pass for hangs and register state | 30 min of adaptive toggling every 100 ms with 161 link bounces, then 20 module reloads: no hang, `rmmod` always returned, registers consistent after the toggling and after every reload. Whether the background loads ran during it is not confirmed (the script hid `iperf3` errors; fixed in the next script commit) |
+| F7 | no hang and consistent registers; traffic during the run not confirmed | 30 min of adaptive toggling every 100 ms with 161 link bounces, then 20 module reloads: `rmmod` always returned and the registers matched the flag afterwards. The script of that run hid `iperf3` and `netperf` results, so it is not known how much traffic ran. `stress_f7.sh` now counts the rounds; rerun |
 | F8 | partly done | Build and checkpatch above; no `sparse` run |
 | F9 | pass | `decay_timing.sh` on the saved CSV: 0.39 s from the last packet seen at level above 0 to level 0 (expected about 0.4 s or less, +/- 0.1 s); 15 samples saw background packets after the level was 0, which do not take part in the decay |
 | F10 | pass, no regression | adaptive on: 9646, 9435, 9297 transactions per second; adaptive off, same session: 9599 and 9100 (the first off run failed to connect to netserver). The two sets overlap, the spread between runs is about 5 percent |
@@ -46,12 +46,26 @@ Commands are in the plan, section 5; `scripts/phase3_tests.sh DEV TEST` runs F4,
 
 Lockdep: `journalctl -k -b` for the whole boot (603 link up/down lines, so the log was complete) contains no lockdep report, `WARNING:`, `BUG:` or `Oops` after the tests above. The first versions of the scripts read `dmesg` by line count, which did not work, so only this journal check counts for F4 to F11.
 
+## RX stops after a forced reset (finding, outside 0006)
+
+Two runs of F4b with the hook and 600M UDP load, `rx_packets` and the RX timer field sampled every 0.1 s:
+
+| Run | What happened |
+|---|---|
+| Adaptive on, level 4 | `TEST restore: level 4, IntrMitigate 0x00a0`, then `rx_packets` flat from 0.02 s after the reset. The iperf3 receiver got 0 bytes from the second after the reset until about 20 s later, when data came back by itself. `rx dim: idle, level 0` was logged because no poll happened for 200 ms, as designed. Turning adaptive off 6 s after the reset did not bring RX back |
+| Adaptive off | `rx_packets` flat from 0.02 s after the reset; 600 Mbit/s for 4 s, then 461 packets, then nothing for the remaining 25 s of the load |
+
+So the stall does not depend on adaptive mode, on the restore, or on a nonzero RX timer (the probe ruled that out). With adaptive mode off, the only code of patches 0001 to 0006 in the reset path is a call that returns at once, so the stall is very probably the behaviour of the unmodified reset path on this NIC under heavy receive load. That is not proven: it was not run on an unpatched driver. It does not change what 0006 has to do, and the restore itself is confirmed by the logged register value. It does mean that a forced reset under load cannot show the level climbing again afterwards, because there is no traffic to poll.
+
+Not investigated (outside the scope of the project): whether the stall is the chip not receiving or NAPI not polling. `ip -s link` (`rx_missed_errors`, `rx_fifo_errors`) and the interrupt count in `/proc/interrupts` during the stall would tell the two apart.
+
 ## Bugs found and fixed during the phase
 
 None yet.
 
 ## Known limits
 
+- A forced reset (the same path as a transmit timeout) under 600M receive load leaves RX dead for 20 s or more on this machine, with adaptive mode on or off; see the finding above.
 - A speed change always drops the link for a second or more, so the idle decay has already set the level to 0 when the link returns; the link work (conversion with the new unit) is a safety net for flaps shorter than the decay period and cannot be observed on hardware by changing the speed.
 - After a speed change `INTT` stays as it was chosen, so the steps are coarser or finer than ideal until adaptive mode is turned off and on again.
 - A reset or resume still clears the TX fields of `IntrMitigate` (stock behaviour); only the RX timer is written again.

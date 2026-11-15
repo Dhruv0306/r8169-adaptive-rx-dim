@@ -1,6 +1,6 @@
 # Locking notes for adaptive RX moderation
 
-Written for Phase 3 against the code of patches 0001 to 0006 on `v7.2.15`. It must be checked again against the final patch series before Phase 5, and the test results that bear on it are in `docs/results/phase_3_robustness.md`.
+Written for Phase 3 against the code of patches 0001 to 0006 on `v7.2.15`; section 6 records what the tests showed. Patch 0006 has not changed since this text was written. It must be checked again if the series changes before Phase 5. The test results are in `docs/results/phase_3_robustness.md`.
 
 ## 1. Locks and their order
 
@@ -50,7 +50,21 @@ Writers of `CPlusCmd` are `rtl_set_coalesce()` (through `rtl_write_coalesce()`),
 | The link work runs after a speed change while the DIM work applies a new level | Two writers of `IntrMitigate` | Both hold `rx_dim_lock` and read-modify-write the RX bits, so the last writer wins and both write the same level |
 | `INTT` was chosen at one speed and the link changes | The unit changes; the level is rounded to the new unit | By design (D3 of the plan). A level shorter than half a unit gives 0 (no moderation). Turning adaptive mode off and on again chooses `INTT` for the new speed |
 
-## 5. What the tests must show (Phase 3)
+## 6. What the tests showed (Phase 3, lockdep enabled)
+
+`journalctl -k -b` for the whole boot of the test session contains no lockdep report, `WARNING:`, `BUG:` or `Oops` (only the boot banners that mention lockdep). The paths exercised:
+
+| Path | Test |
+|---|---|
+| ethtool path against the work items and NAPI | F11 (concurrent `adaptive-rx` and `tx-usecs` changes under load), F7 (toggling every 100 ms) |
+| PHY handler queueing the link work | F5 (speed change), F7 (161 link bounces) |
+| `rtl_hw_start()` taking `rx_dim_lock` with and without RTNL | F4 and F7 (open, from `rtl8169_up()` under RTNL), F6 (resume, no RTNL), F4b (reset task, no RTNL) |
+| Cancelling the work items in `rtl8169_down()` under RTNL | F4 (10 down/up), F7 (20 reloads), F6 (suspend) |
+| Decay work and DIM work running together | F9, F4b (the decay fired right after a restart) |
+
+The 20 reloads and the suspend ran with adaptive mode on. Whether the decay work was armed at those moments depends on the traffic of the run, which is why `stress_f7.sh` now counts the traffic rounds.
+
+## 5. What the tests had to show (Phase 3)
 
 - No lockdep report in any test, in particular F4, F4b, F7 and F11, which run the three paths (ethtool, workqueue, RTNL) against each other.
 - After every hardware restart the registers agree with the DIM level (F4, F4b).
