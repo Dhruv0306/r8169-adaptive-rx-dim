@@ -84,6 +84,10 @@ COLUMNS = [
     ("IRQ CPU softirq %", "irq_cpu_softirq_pct", "%.1f", ALL),
 ]
 
+# With fewer runs than this, the standard deviation says nothing, so no
+# verdict is given
+MIN_RUNS = 3
+
 # Key metrics for the comparison table: key, title, True when a higher
 # value is better, workloads it applies to
 COMPARE = [
@@ -128,16 +132,20 @@ def verdict(ref, other, higher_better, force_abs=False):
 
     The difference is a percentage of the reference mean, or the plain
     difference (absolute is True) when the reference mean is 0. The verdict
-    is "better", "worse" or "noise".
+    is "better", "worse" or "noise", or a note when either side has fewer than
+    MIN_RUNS runs.
     """
     if not ref or not other:
         return None
     mr, mo = st.mean(ref), st.mean(other)
+    too_few = len(ref) < MIN_RUNS or len(other) < MIN_RUNS
     sr = st.stdev(ref) if len(ref) > 1 else 0.0
     so = st.stdev(other) if len(other) > 1 else 0.0
     diff = mo - mr
     absolute = force_abs or mr == 0
     value = diff if absolute else 100.0 * diff / mr
+    if too_few:
+        return value, absolute, "(fewer than %d runs)" % MIN_RUNS
     if abs(diff) <= max(sr, so):
         return value, absolute, "noise"
     return value, absolute, "better" if (diff > 0) == higher_better else "worse"
