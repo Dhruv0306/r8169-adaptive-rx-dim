@@ -1,0 +1,62 @@
+2026-11-16T16:35:48+05:30 round 1/1: configuration off (runs 1 to 6)
+2026-11-16T16:35:48+05:30 off applied: adaptive=off rx-usecs=0 rx-frames=1
+off,udp,600M,1,20.01,2001.6,24624.8,2.1,3,24.3,17.7,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0117;pps=51796;cpu_nonidle_pct=27.6
+off,udp,600M,2,20.01,2002.3,24635.0,3.4,3,34.4,27.9,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0115;pps=51796;cpu_nonidle_pct=26.5
+off,udp,600M,3,20.01,2001.8,26926.3,0.0,3,0.0,0.0,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0120;pps=51796;cpu_nonidle_pct=19.7
+off,udp,600M,4,20.01,2002.2,24948.8,2.4,3,26.6,19.3,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0120;pps=51796;cpu_nonidle_pct=26.6
+off,udp,600M,5,20.01,2002.3,26662.3,0.0,3,0.1,0.0,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0123;pps=51793;cpu_nonidle_pct=30.2
+off,udp,600M,6,20.01,2003.2,25032.4,2.3,3,25.6,19.2,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0122;pps=51796;cpu_nonidle_pct=25.9
+off,udps,100B-p100-50M,1,20.01,18617.2,38616.3,1.7,3,22.5,18.2,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0062;pps=62500;cpu_nonidle_pct=26.2
+off,udps,100B-p100-100M,1,20.01,19743.1,40172.5,2.6,3,30.6,24.3,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0049;pps=125000;cpu_nonidle_pct=36.6
+off,udps,100B-p100-50M,2,20.01,18583.4,38585.3,0.7,3,7.5,6.9,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0066;pps=62500;cpu_nonidle_pct=24.2
+off,udps,100B-p100-100M,2,20.01,19745.7,40093.0,2.5,3,35.2,26.2,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0071;pps=125000;cpu_nonidle_pct=38.8
+off,udps,100B-p100-50M,3,20.01,19968.3,39983.6,1.6,3,18.4,16.8,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0066;pps=62500;cpu_nonidle_pct=25.3
+off,udps,100B-p100-100M,3,20.01,19674.1,40172.0,2.6,3,31.3,26.0,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0038;pps=125000;cpu_nonidle_pct=37.9
+off,udps,100B-p100-50M,4,20.01,18324.1,38288.5,1.7,3,22.3,16.8,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0066;pps=62500;cpu_nonidle_pct=22.3
+off,udps,100B-p100-100M,4,20.01,19542.6,40071.2,2.8,3,30.6,26.5,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0068;pps=125000;cpu_nonidle_pct=35.8
+off,udps,100B-p100-50M,5,20.01,19975.0,39994.9,1.6,3,23.9,17.2,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0074;pps=62500;cpu_nonidle_pct=25.4
+off,udps,100B-p100-100M,5,20.01,13945.9,38667.7,3.2,3,37.0,28.5,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0036;pps=125000;cpu_nonidle_pct=36.6
+off,udps,100B-p100-50M,6,20.01,18058.3,38012.2,2.2,3,25.0,21.8,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0070;pps=62500;cpu_nonidle_pct=22.0
+off,udps,100B-p100-100M,6,20.01,18768.9,39891.4,2.3,3,27.2,24.1,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0058;pps=125000;cpu_nonidle_pct=36.8
+2026-11-16T16:42:34+05:30 round 1/1: configuration adaptive (runs 1 to 6)
+2026-11-16T16:42:34+05:30 adaptive applied: adaptive=on rx-usecs=0 rx-frames=1
+adaptive,udp,600M,1,20.01,1993.3,11192.0,0.1,3,0.0,0.0,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0066;pps=51796;cpu_nonidle_pct=19.2
+adaptive,udp,600M,2,20.01,1980.5,10160.6,7.5,3,65.8,64.4,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0062;pps=51796;cpu_nonidle_pct=21.7
+adaptive,udp,600M,3,20.01,1996.3,13821.1,0.1,3,0.9,0.9,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0044;pps=51795;cpu_nonidle_pct=16.1
+adaptive,udp,600M,4,20.01,1993.5,13179.7,0.6,3,7.5,7.5,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0092;pps=51796;cpu_nonidle_pct=18.1
+adaptive,udp,600M,5,20.01,1989.9,10622.1,0.0,3,0.0,0.0,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0062;pps=51795;cpu_nonidle_pct=20.5
+adaptive,udp,600M,6,20.01,1987.2,10664.9,0.0,3,0.0,0.0,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0059;pps=51795;cpu_nonidle_pct=20.1
+adaptive,udps,100B-p100-50M,1,20.01,2804.6,6533.1,1.0,3,5.9,2.8,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0203;pps=62500;cpu_nonidle_pct=22.2
+adaptive,udps,100B-p100-100M,1,20.01,3214.6,8535.2,1.0,3,4.0,3.3,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0090;pps=125000;cpu_nonidle_pct=24.1
+adaptive,udps,100B-p100-50M,2,20.01,2806.2,6448.8,1.1,3,9.0,4.7,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0169;pps=62500;cpu_nonidle_pct=22.8
+adaptive,udps,100B-p100-100M,2,20.01,3256.8,9038.5,1.5,3,7.3,3.9,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0056;pps=125000;cpu_nonidle_pct=24.1
+adaptive,udps,100B-p100-50M,3,20.01,2853.4,6662.4,0.8,3,5.6,2.7,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0150;pps=62500;cpu_nonidle_pct=23.0
+adaptive,udps,100B-p100-100M,3,20.01,3146.3,10121.2,1.4,3,4.6,3.5,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0043;pps=125000;cpu_nonidle_pct=26.7
+adaptive,udps,100B-p100-50M,4,20.01,2789.9,6497.2,1.0,3,4.5,2.1,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0147;pps=62500;cpu_nonidle_pct=21.4
+adaptive,udps,100B-p100-100M,4,20.01,3263.2,8994.2,1.5,3,6.6,3.6,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0051;pps=125000;cpu_nonidle_pct=24.7
+adaptive,udps,100B-p100-50M,5,20.01,3170.2,7603.8,0.7,3,3.2,1.4,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0147;pps=62500;cpu_nonidle_pct=18.8
+adaptive,udps,100B-p100-100M,5,20.01,3199.1,10120.4,1.7,3,6.6,4.6,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0064;pps=125000;cpu_nonidle_pct=26.2
+adaptive,udps,100B-p100-50M,6,20.01,3317.0,7518.5,0.9,3,7.5,3.0,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0164;pps=62500;cpu_nonidle_pct=24.2
+adaptive,udps,100B-p100-100M,6,20.01,3177.8,10035.3,1.7,3,6.9,4.7,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0042;pps=125000;cpu_nonidle_pct=27.3
+2026-11-16T16:49:19+05:30 round 1/1: configuration static-L4 (runs 1 to 6)
+2026-11-16T16:49:19+05:30 static-L4 applied: adaptive=off rx-usecs=400 rx-frames=0
+static-L4,udp,600M,1,20.01,2001.6,13660.3,0.1,3,0.1,0.1,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0082;pps=51796;cpu_nonidle_pct=18.6
+static-L4,udp,600M,2,20.01,2001.1,9865.1,1.7,3,32.3,32.2,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0078;pps=51796;cpu_nonidle_pct=22.3
+static-L4,udp,600M,3,20.01,2001.1,13937.4,0.0,3,0.1,0.1,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0086;pps=51796;cpu_nonidle_pct=24.3
+static-L4,udp,600M,4,20.01,2001.1,8987.3,1.3,3,15.9,11.0,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0050;pps=51795;cpu_nonidle_pct=24.9
+static-L4,udp,600M,5,20.01,2000.5,9825.9,1.0,3,0.0,0.0,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0037;pps=51794;cpu_nonidle_pct=25.9
+static-L4,udp,600M,6,20.01,2000.8,8987.3,6.4,3,88.0,87.9,ok,mbit=600.0;loss_pct=0.0000;jitter_ms=0.0066;pps=51794;cpu_nonidle_pct=21.4
+static-L4,udps,100B-p100-50M,1,20.01,2712.9,6349.5,1.3,3,7.2,2.6,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0147;pps=62500;cpu_nonidle_pct=23.7
+static-L4,udps,100B-p100-100M,1,20.01,2923.3,8148.3,1.5,3,9.0,3.7,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0053;pps=125000;cpu_nonidle_pct=25.9
+static-L4,udps,100B-p100-50M,2,20.01,2719.5,6372.7,0.9,3,6.0,2.8,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0152;pps=62500;cpu_nonidle_pct=22.9
+static-L4,udps,100B-p100-100M,2,20.01,2925.4,8039.2,1.5,3,6.4,2.3,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0058;pps=125000;cpu_nonidle_pct=24.6
+static-L4,udps,100B-p100-50M,3,20.01,2720.6,6339.2,1.0,3,7.7,2.9,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0148;pps=62500;cpu_nonidle_pct=21.7
+static-L4,udps,100B-p100-100M,3,20.01,2921.0,8030.8,1.5,3,7.6,2.5,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0103;pps=125000;cpu_nonidle_pct=25.9
+static-L4,udps,100B-p100-50M,4,20.01,2721.7,6326.2,0.9,3,6.2,2.3,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0158;pps=62500;cpu_nonidle_pct=22.9
+static-L4,udps,100B-p100-100M,4,20.01,2919.4,8037.9,1.2,3,7.9,2.7,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0093;pps=125000;cpu_nonidle_pct=26.8
+static-L4,udps,100B-p100-50M,5,20.01,2730.5,6344.2,1.0,3,9.1,4.0,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0148;pps=62500;cpu_nonidle_pct=24.4
+static-L4,udps,100B-p100-100M,5,20.01,2925.8,8089.9,1.5,3,10.0,3.4,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0054;pps=125000;cpu_nonidle_pct=25.8
+static-L4,udps,100B-p100-50M,6,20.01,2777.3,6801.3,0.9,3,6.9,2.9,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0155;pps=62500;cpu_nonidle_pct=22.9
+static-L4,udps,100B-p100-100M,6,20.01,2765.6,9071.6,1.9,3,6.8,2.5,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0056;pps=125000;cpu_nonidle_pct=28.9
+2026-11-16T16:56:04+05:30 matrix finished
+2026-11-16T16:56:04+05:30 stopped; the device is back to adaptive off, rx-usecs 0
