@@ -1,6 +1,6 @@
 # Plan for Phase 4: Measurement and tuning
 
-Status: not started. Depends on Phase 3 (a stable module). High-level summary: [`../phases.md`](../phases.md), Phase 4. Results go in `docs/results/phase_4_measurement_and_tuning.md`, raw logs in `results/`.
+Status: in progress (started 2026-11-16; the measurement scripts of step 1 are written, the sessions on the PC are next). Depends on Phase 3 (a stable module, done). High-level summary: [`../phases.md`](../phases.md), Phase 4. Results go in `docs/results/phase_4_measurement_and_tuning.md`, raw logs in `results/`.
 
 Machine tags: **[Claude]** work in the chat, **[PC]** machine under test (root, at the console), **[PEER]** second machine, **[repo]** project repository.
 
@@ -98,3 +98,23 @@ Objective, in order: (1) `rr` and `rrp` transactions per second and latency with
 ## 8. Results file outline (`docs/results/phase_4_measurement_and_tuning.md`)
 
 Status and dates; configurations and workloads actually used; calibration data and the chosen rates; the exploratory and final tables (from `summarize_results.py`); the tuning log (table versions, what changed, what moved); the frozen table with the reason for each value; figures; findings and conclusion; limitations; the list of raw-data folders.
+
+## 9. Runbook (scripts written in step 1)
+
+All on the PC as root at the console, from the repository root (`cd /home/aoscsg623/Downloads/r8169-adaptive-rx-dim`), with the signed patched module loaded (`cat /sys/module/r8169/srcversion`) and `iperf3 -s` and `netserver` running on the peer. `export PEER=<peer address>`. After any link-up, module swap or resume wait about 40 s (the scripts poll the peer for up to 120 s).
+
+| Step | Command | Result |
+|---|---|---|
+| Peer notes | on the peer: `uname -r; lspci \| grep -i ethernet; ethtool -i <peer dev>; iperf3 --version; netperf -V` | save as `results/phase4/peer.txt` |
+| Calibration (3.3) | `ethtool -C enp3s0 adaptive-rx off rx-usecs 0` then `bash scripts/rx_bench.sh -l calib -p $PEER -o results/phase4/calibration -w udps -r "20M 50M 100M 200M 300M" -n 3 -t 15` | `pkt/s`, IRQ CPU busy and softirq, loss per rate (`summarize_results.py -d results/phase4/calibration`) |
+| Plan only | `bash scripts/run_matrix.sh -p $PEER -o results/phase4/exploratory-1 -n ...` | configurations, cells, runs and time estimate, nothing run |
+| Exploratory matrix | `bash scripts/run_matrix.sh -p $PEER -o results/phase4/exploratory-1 -R 2 -V 3 -c "off static-L2 static-L4 adaptive" -r "<3 rates from the calibration>" -g performance` | about 6 runs per cell and label |
+| Stock at the two ends | `rmmod r8169; modprobe r8169`, wait 40 s, then `bash scripts/rx_bench.sh -l stock -p $PEER -o results/phase4/exploratory-1 -n 5 -w "rr rrp tcp udp udps" -u "300M 600M 900M" -r "<same rates>"`, then load the patched module again (`bash scripts/build_sign_load.sh`). Use `-O 5` for the second visit | `stock` label in the same directory |
+| Summary | `python3 scripts/summarize_results.py -d results/phase4/exploratory-1 -r off` | tables and a noise-aware comparison against `off` |
+| 900M dwell | `bash scripts/dwell_check.sh -p $PEER -n 10 -r 900M -a on`, and the control `-a off` | `results/phase4/dwell/<label>/summary.csv`, one level trace per run |
+| Tuning round | table change as patch 0007 candidate, `bash scripts/build_sign_load.sh`, then `run_matrix.sh -c "off adaptive" -w "rrp udp udps" -T "<new table>"` into a new directory | one directory per table version |
+| Final matrix | as the exploratory one with `-R 4 -V 3` (12 runs per cell) on the frozen build, `stock` at both ends | 10 or more runs per cell |
+| Stepped load | `bash scripts/stepped_load.sh -p $PEER -a on`, and `-a off` as the control | `results/phase4/stepped/<label>/` |
+| Figures | `python3 scripts/plot_results.py -d results/phase4/<dir> -o docs/figures --stepped results/phase4/stepped/adaptive-600M` | PNG files in `docs/figures/` |
+
+Notes: `run_matrix.sh` visits the configurations in one order on odd rounds and the reverse order on even rounds, so drift in time does not line up with one configuration (a refinement of the fixed order in 3.4). It reads each configuration back after applying it and after each visit, and lists visits that may be invalid in `warnings.txt`. The `-T` table must match the module under test: `static-L<k>` sets `rx-usecs` to the k-th value. Compare labels only within one session and one directory.
