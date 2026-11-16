@@ -24,8 +24,20 @@
 #   -o OUTDIR    output directory             (default results/baseline)
 #   -n RUNS      repetitions per cell         (default 5)
 #   -t SECS      seconds per run              (default 20)
-#   -w LIST      workloads: idle rr tcp udp   (default "idle rr tcp udp")
-#   -u RATES     UDP offered rates            (default "100M 300M 600M 900M")
+#   -w LIST      workloads: idle rr rrp tcp udp udps  (default "idle rr tcp udp")
+#   -u RATES     udp offered rates            (default "100M 300M 600M 900M")
+#   -s BYTES     udps datagram payload size   (default 100)
+#   -r RATES     udps offered rates           (default "50M 100M 200M")
+#   -P N         rrp: parallel netperf TCP_RR instances (default 8)
+#   -O N         number the runs from N+1, so that several visits with the
+#                same label (see run_matrix.sh) do not overwrite each other
+#                (default 0)
+#
+# Workloads: rr is one netperf TCP_RR stream with 64 byte messages. rrp is
+# -P of them at once (the result is the sum of the transactions per second
+# and the mean of the mean latencies). udp is iperf3 UDP with the default
+# 1448 byte datagrams, udps is iperf3 UDP with -s byte datagrams, which
+# gives a high packet rate at a modest bit rate.
 
 set -u
 
@@ -36,6 +48,10 @@ RUNS=5
 SECS=20
 WORKLOADS="idle rr tcp udp"
 UDP_RATES="100M 300M 600M 900M"
+UDPS_LEN=100
+UDPS_RATES="50M 100M 200M"
+PARALLEL=8
+RUN_OFFSET=0
 LABEL=""
 PEER=""
 
@@ -44,7 +60,7 @@ usage() {
 	exit 2
 }
 
-while getopts "l:p:d:i:o:n:t:w:u:h" opt; do
+while getopts "l:p:d:i:o:n:t:w:u:s:r:P:O:h" opt; do
 	case $opt in
 	l) LABEL=$OPTARG ;;
 	p) PEER=$OPTARG ;;
@@ -55,6 +71,10 @@ while getopts "l:p:d:i:o:n:t:w:u:h" opt; do
 	t) SECS=$OPTARG ;;
 	w) WORKLOADS=$OPTARG ;;
 	u) UDP_RATES=$OPTARG ;;
+	s) UDPS_LEN=$OPTARG ;;
+	r) UDPS_RATES=$OPTARG ;;
+	P) PARALLEL=$OPTARG ;;
+	O) RUN_OFFSET=$OPTARG ;;
 	*) usage ;;
 	esac
 done
@@ -93,8 +113,8 @@ for tool in awk python3; do
 done
 for w in $WORKLOADS; do
 	case $w in
-	rr) command -v netperf >/dev/null || { echo "missing tool: netperf" >&2; exit 1; } ;;
-	tcp | udp) command -v iperf3 >/dev/null || { echo "missing tool: iperf3" >&2; exit 1; } ;;
+	rr | rrp) command -v netperf >/dev/null || { echo "missing tool: netperf" >&2; exit 1; } ;;
+	tcp | udp | udps) command -v iperf3 >/dev/null || { echo "missing tool: iperf3" >&2; exit 1; } ;;
 	idle) ;;
 	*) echo "unknown workload: $w" >&2; exit 2 ;;
 	esac
@@ -182,8 +202,9 @@ try:
     s = e.get("sum", {})
     if "lost_percent" in s:
         # UDP (iperf3 3.16 also reports sum_received for UDP, so test this first)
-        print("mbit=%.1f;loss_pct=%.4f;jitter_ms=%.4f" % (
-            s["bits_per_second"] / 1e6, s.get("lost_percent", 0), s.get("jitter_ms", 0)))
+        pps = s["packets"] / s["seconds"] if s.get("packets") and s.get("seconds") else 0
+        print("mbit=%.1f;loss_pct=%.4f;jitter_ms=%.4f;pps=%.0f" % (
+            s["bits_per_second"] / 1e6, s.get("lost_percent", 0), s.get("jitter_ms", 0), pps))
     else:
         print("mbit=%.1f" % (e["sum_received"]["bits_per_second"] / 1e6))
 except Exception:
@@ -193,6 +214,34 @@ PY
 
 parse_netperf() {
 	tail -n 1 "$1" | awk -F, '{ printf "tps=%s;mean_lat_us=%s;min_lat_us=%s;max_lat_us=%s;stddev_us=%s\n", $1, $2, $3, $4, $5 }'
+}
+
+# rrp: one result line per netperf instance in the raw file
+parse_rrp() {
+	awk -F, 'NF >= 5 && $1 + 0 > 0 { n++; tps += $1; lat += $2; if (n == 1 || $3 < mn) mn = $3; if ($4 > mx) mx = $4 }
+		END { if (n == 0) { print "parse_error"; exit }
+			printf "tps=%.2f;mean_lat_us=%.2f;min_lat_us=%s;max_lat_us=%s;instances=%d\n", tps, lat / n, mn, mx, n }' "$1"
+}
+
+# run_rrp: PARALLEL netperf TCP_RR instances at once; prints their last
+# lines (one per instance) and fails if any instance fails
+run_rrp() {
+	local i pid rc=0 pids=()
+	local tmp="$OUT/.rrp_$$"
+	for i in $(seq 1 "$PARALLEL"); do
+		netperf -H "$PEER" -t TCP_RR -l "$SECS" -P 0 -- -r 64,64 \
+			-o THROUGHPUT,MEAN_LATENCY,MIN_LATENCY,MAX_LATENCY,STDDEV_LATENCY \
+			> "$tmp.$i" 2>&1 &
+		pids+=($!)
+	done
+	for pid in "${pids[@]}"; do
+		wait "$pid" || rc=1
+	done
+	for i in $(seq 1 "$PARALLEL"); do
+		tail -n 1 "$tmp.$i"
+		rm -f "$tmp.$i"
+	done
+	return $rc
 }
 
 parse_none() {
@@ -259,7 +308,8 @@ fi
 	echo "date: $(date -Is)"
 	echo "label: $LABEL"
 	echo "peer: ${PEER:-none}"
-	echo "dev: $DEV  irq: $IRQ  secs: $SECS  runs: $RUNS"
+	echo "dev: $DEV  irq: $IRQ  secs: $SECS  runs: $RUNS  first run: $((RUN_OFFSET + 1))"
+	echo "workloads: $WORKLOADS  udp rates: $UDP_RATES  udps: ${UDPS_LEN}B at $UDPS_RATES  rrp instances: $PARALLEL"
 	echo "kernel: $(uname -r)"
 	echo "r8169 srcversion: $(cat /sys/module/r8169/srcversion 2>/dev/null || echo unknown)"
 	echo "cpus: $(nproc)"
@@ -289,7 +339,8 @@ fi
 # ---- workloads ------------------------------------------------------
 
 for w in $WORKLOADS; do
-	for run in $(seq 1 "$RUNS"); do
+	for i in $(seq 1 "$RUNS"); do
+		run=$((RUN_OFFSET + i))
 		case $w in
 		idle)
 			measure idle - "$run" parse_none sleep "$SECS"
@@ -299,12 +350,21 @@ for w in $WORKLOADS; do
 				netperf -H "$PEER" -t TCP_RR -l "$SECS" -P 0 -- -r 64,64 \
 				-o THROUGHPUT,MEAN_LATENCY,MIN_LATENCY,MAX_LATENCY,STDDEV_LATENCY
 			;;
+		rrp)
+			measure rrp "64B-x$PARALLEL" "$run" parse_rrp run_rrp
+			;;
 		tcp)
 			measure tcp bulk "$run" parse_iperf iperf3 -c "$PEER" -R -t "$SECS" -J
 			;;
 		udp)
 			for rate in $UDP_RATES; do
 				measure udp "$rate" "$run" parse_iperf iperf3 -c "$PEER" -R -u -b "$rate" -t "$SECS" -J
+			done
+			;;
+		udps)
+			for rate in $UDPS_RATES; do
+				measure udps "${UDPS_LEN}B-$rate" "$run" parse_iperf \
+					iperf3 -c "$PEER" -R -u -l "$UDPS_LEN" -b "$rate" -t "$SECS" -J
 			done
 			;;
 		esac
