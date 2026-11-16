@@ -28,6 +28,9 @@
 #   -u RATES     udp offered rates            (default "100M 300M 600M 900M")
 #   -s BYTES     udps datagram payload size   (default 100)
 #   -r RATES     udps offered rates           (default "50M 100M 200M")
+#   -m USECS     udps iperf3 pacing timer in microseconds (default: iperf3's
+#                own, 1000). A short timer spreads the packets out instead of
+#                sending them in bursts, which raises the interrupt rate
 #   -P N         rrp: parallel netperf TCP_RR instances (default 8)
 #   -O N         number the runs from N+1, so that several visits with the
 #                same label (see run_matrix.sh) do not overwrite each other
@@ -50,6 +53,7 @@ WORKLOADS="idle rr tcp udp"
 UDP_RATES="100M 300M 600M 900M"
 UDPS_LEN=100
 UDPS_RATES="50M 100M 200M"
+UDPS_PACING=""
 PARALLEL=8
 RUN_OFFSET=0
 LABEL=""
@@ -60,7 +64,7 @@ usage() {
 	exit 2
 }
 
-while getopts "l:p:d:i:o:n:t:w:u:s:r:P:O:h" opt; do
+while getopts "l:p:d:i:o:n:t:w:u:s:r:m:P:O:h" opt; do
 	case $opt in
 	l) LABEL=$OPTARG ;;
 	p) PEER=$OPTARG ;;
@@ -73,6 +77,7 @@ while getopts "l:p:d:i:o:n:t:w:u:s:r:P:O:h" opt; do
 	u) UDP_RATES=$OPTARG ;;
 	s) UDPS_LEN=$OPTARG ;;
 	r) UDPS_RATES=$OPTARG ;;
+	m) UDPS_PACING=$OPTARG ;;
 	P) PARALLEL=$OPTARG ;;
 	O) RUN_OFFSET=$OPTARG ;;
 	*) usage ;;
@@ -309,7 +314,7 @@ fi
 	echo "label: $LABEL"
 	echo "peer: ${PEER:-none}"
 	echo "dev: $DEV  irq: $IRQ  secs: $SECS  runs: $RUNS  first run: $((RUN_OFFSET + 1))"
-	echo "workloads: $WORKLOADS  udp rates: $UDP_RATES  udps: ${UDPS_LEN}B at $UDPS_RATES  rrp instances: $PARALLEL"
+	echo "workloads: $WORKLOADS  udp rates: $UDP_RATES  udps: ${UDPS_LEN}B at $UDPS_RATES (pacing timer ${UDPS_PACING:-default})  rrp instances: $PARALLEL"
 	echo "kernel: $(uname -r)"
 	echo "r8169 srcversion: $(cat /sys/module/r8169/srcversion 2>/dev/null || echo unknown)"
 	echo "cpus: $(nproc)"
@@ -362,9 +367,15 @@ for w in $WORKLOADS; do
 			done
 			;;
 		udps)
+			pace=()
+			ptag=""
+			if [ -n "$UDPS_PACING" ]; then
+				pace=(--pacing-timer "$UDPS_PACING")
+				ptag="p$UDPS_PACING-"
+			fi
 			for rate in $UDPS_RATES; do
-				measure udps "${UDPS_LEN}B-$rate" "$run" parse_iperf \
-					iperf3 -c "$PEER" -R -u -l "$UDPS_LEN" -b "$rate" -t "$SECS" -J
+				measure udps "${UDPS_LEN}B-$ptag$rate" "$run" parse_iperf \
+					iperf3 -c "$PEER" -R -u -l "$UDPS_LEN" -b "$rate" "${pace[@]}" -t "$SECS" -J
 			done
 			;;
 		esac

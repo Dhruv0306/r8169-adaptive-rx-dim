@@ -32,6 +32,7 @@
 #   -u RATES     udp rates                            (default "300M 600M 900M")
 #   -r RATES     udps rates                           (default "50M 100M 200M")
 #   -s BYTES     udps datagram payload                (default 100)
+#   -m USECS     udps iperf3 pacing timer             (default: iperf3's own)
 #   -P N         rrp instances                        (default 8)
 #   -t SECS      seconds per run                      (default 20)
 #   -R ROUNDS    rounds                               (default 4)
@@ -55,6 +56,7 @@ WORKLOADS="rr rrp tcp udp udps"
 UDP_RATES="300M 600M 900M"
 UDPS_RATES="50M 100M 200M"
 UDPS_LEN=100
+UDPS_PACING=""
 PARALLEL=8
 SECS=20
 ROUNDS=4
@@ -67,7 +69,7 @@ usage() {
 	exit 2
 }
 
-while getopts "p:o:d:c:T:w:u:r:s:P:t:R:V:g:nh" opt; do
+while getopts "p:o:d:c:T:w:u:r:s:m:P:t:R:V:g:nh" opt; do
 	case $opt in
 	p) PEER=$OPTARG ;;
 	o) OUTDIR=$OPTARG ;;
@@ -78,6 +80,7 @@ while getopts "p:o:d:c:T:w:u:r:s:P:t:R:V:g:nh" opt; do
 	u) UDP_RATES=$OPTARG ;;
 	r) UDPS_RATES=$OPTARG ;;
 	s) UDPS_LEN=$OPTARG ;;
+	m) UDPS_PACING=$OPTARG ;;
 	P) PARALLEL=$OPTARG ;;
 	t) SECS=$OPTARG ;;
 	R) ROUNDS=$OPTARG ;;
@@ -246,7 +249,7 @@ trap 'exit 130' INT TERM
 	echo "r8169 srcversion: $(cat /sys/module/r8169/srcversion 2> /dev/null || echo unknown)"
 	echo "governor: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2> /dev/null || echo unknown)"
 	echo "configurations: ${CFG[*]}  table: $TABLE"
-	echo "workloads: $WORKLOADS  udp: $UDP_RATES  udps: ${UDPS_LEN}B at $UDPS_RATES  rrp: $PARALLEL"
+	echo "workloads: $WORKLOADS  udp: $UDP_RATES  udps: ${UDPS_LEN}B at $UDPS_RATES, pacing ${UDPS_PACING:-default}  rrp: $PARALLEL"
 	echo "rounds: $ROUNDS  runs per visit: $VISIT_RUNS  secs: $SECS"
 } > "$OUTDIR/session_$(date +%Y%m%d_%H%M%S).txt"
 
@@ -277,7 +280,7 @@ for round in $(seq 1 "$ROUNDS"); do
 		sleep 2
 
 		"$here/rx_bench.sh" -l "$c" -p "$PEER" -d "$DEV" -o "$OUTDIR" -n "$VISIT_RUNS" -O "$offset" \
-			-t "$SECS" -w "$WORKLOADS" -u "$UDP_RATES" -r "$UDPS_RATES" -s "$UDPS_LEN" -P "$PARALLEL" \
+			-t "$SECS" -w "$WORKLOADS" -u "$UDP_RATES" -r "$UDPS_RATES" -s "$UDPS_LEN" -m "$UDPS_PACING" -P "$PARALLEL" \
 			2>&1 | tee -a "$LOG"
 
 		# the device must still be in the configuration after the visit
