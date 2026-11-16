@@ -15,6 +15,7 @@
 #   -t SECS      seconds per run              (default 15)
 #   -r RATE      UDP rate                     (default 900M)
 #   -s BYTES     UDP datagram payload         (default: iperf3 default, 1448)
+#   -m USECS     iperf3 pacing timer          (default: iperf3's own, 1000)
 #   -a MODE      on (default) or off (control: adaptive off)
 #   -v SECS      sampling interval            (default 0.2)
 #
@@ -32,6 +33,7 @@ RUNS=10
 SECS=15
 RATE=900M
 LEN=""
+PACING=""
 MODE=on
 INTERVAL=0.2
 
@@ -40,7 +42,7 @@ usage() {
 	exit 2
 }
 
-while getopts "p:d:o:l:n:t:r:s:a:v:h" opt; do
+while getopts "p:d:o:l:n:t:r:s:m:a:v:h" opt; do
 	case $opt in
 	p) PEER=$OPTARG ;;
 	d) DEV=$OPTARG ;;
@@ -50,6 +52,7 @@ while getopts "p:d:o:l:n:t:r:s:a:v:h" opt; do
 	t) SECS=$OPTARG ;;
 	r) RATE=$OPTARG ;;
 	s) LEN=$OPTARG ;;
+	m) PACING=$OPTARG ;;
 	a) MODE=$OPTARG ;;
 	v) INTERVAL=$OPTARG ;;
 	*) usage ;;
@@ -113,11 +116,10 @@ for i in $(seq 1 "$RUNS"); do
 	SAMPLER=$!
 	s0=$(net_rx)
 	ts0=$(date +%s.%N)
-	if [ -n "$LEN" ]; then
-		iperf3 -c "$PEER" -R -u -b "$RATE" -l "$LEN" -t "$SECS" -J > "$OUT/run$run.json" 2>&1
-	else
-		iperf3 -c "$PEER" -R -u -b "$RATE" -t "$SECS" -J > "$OUT/run$run.json" 2>&1
-	fi
+	args=(-c "$PEER" -R -u -b "$RATE" -t "$SECS" -J)
+	[ -n "$LEN" ] && args+=(-l "$LEN")
+	[ -n "$PACING" ] && args+=(--pacing-timer "$PACING")
+	iperf3 "${args[@]}" > "$OUT/run$run.json" 2>&1
 	rc=$?
 	ts1=$(date +%s.%N)
 	s1=$(net_rx)
