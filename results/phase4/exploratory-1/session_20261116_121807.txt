@@ -1,0 +1,8 @@
+date: 2026-11-16T12:18:07+05:30
+command: scripts/run_matrix.sh -p 10.8.1.53 -o results/phase4/exploratory-1 -R 2 -V 3 -c off static-L2 static-L4 adaptive -u 600M 900M -r 50M 100M 200M -m 100
+kernel: 7.2.15-netquota
+r8169 srcversion: 04E8D19E5DCBE28E8305847
+governor: performance
+configurations: off static-L2 static-L4 adaptive  table: 40 80 200 400
+workloads: rr rrp tcp udp udps  udp: 600M 900M  udps: 100B at 50M 100M 200M, pacing 100  rrp: 8
+rounds: 2  runs per visit: 3  secs: 20
