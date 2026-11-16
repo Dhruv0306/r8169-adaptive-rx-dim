@@ -82,6 +82,7 @@ COLUMNS = [
     ("CPU all %", "cpu_busy_pct", "%.2f", ALL),
     ("IRQ CPU busy %", "irq_cpu_busy_pct", "%.1f", ALL),
     ("IRQ CPU softirq %", "irq_cpu_softirq_pct", "%.1f", ALL),
+    ("IRQ CPU non-idle %", "cpu_nonidle_pct", "%.1f", ALL),
 ]
 
 # With fewer runs than this, the standard deviation says nothing, so no
@@ -97,6 +98,7 @@ COMPARE = [
     ("loss_pct", "loss", False, ("udp", "udps")),
     ("net_rx_softirq_per_s", "NET_RX/s", False, ALL),
     ("irq_cpu_softirq_pct", "IRQ CPU softirq", False, ALL),
+    ("cpu_nonidle_pct", "IRQ CPU non-idle", False, ALL),
 ]
 
 

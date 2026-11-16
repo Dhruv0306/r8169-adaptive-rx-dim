@@ -151,10 +151,19 @@ cpu_times() {
 	awk '$1 == "cpu" { idle = $5 + $6; t = 0; for (i = 2; i <= 9; i++) t += $i; print t - idle, t }' /proc/stat
 }
 
+CPU_SYSFS=${CPU_SYSFS:-/sys/devices/system/cpu}
+
 # snapshot_cpus FILE: per-CPU interrupt counts of the NIC row ("IRQ ..."),
+# the time ("TS seconds"), the idle residency of each CPU in microseconds
+# from cpuidle ("IDLE cpu usec", nothing where cpuidle is not available),
 # then the per-CPU lines of /proc/stat
 snapshot_cpus() {
 	{
+		echo "TS $(date +%s.%N)"
+		for d in "$CPU_SYSFS"/cpu[0-9]*; do
+			ls "$d"/cpuidle/state*/time > /dev/null 2>&1 || continue
+			echo "IDLE ${d##*cpu} $(cat "$d"/cpuidle/state*/time | awk '{ s += $1 } END { print s + 0 }')"
+		done
 		awk -v irq="$IRQ:" '$1 == irq { printf "IRQ"; for (i = 2; i <= NF && $i ~ /^[0-9]+$/; i++) printf " %s", $i; print "" }' "$INTERRUPTS_FILE"
 		grep '^cpu[0-9]' /proc/stat
 	} > "$1"
@@ -194,6 +203,45 @@ try:
     print("%d,%.1f,%.1f" % (cpu, 100.0 * (total - idle) / total, 100.0 * d[6] / total))
 except Exception:
     print("-,-,-")
+PY
+}
+
+# irq_cpu_nonidle BEFORE AFTER: the share of the wall time that the CPU which
+# took the NIC interrupts was not in a cpuidle state, in percent, or "-". The
+# idle residency is measured by the idle code in microseconds, so unlike the
+# /proc/stat figures above (sampled at the scheduler tick) it does not depend
+# on when the tick falls. It counts the polling idle state as idle.
+irq_cpu_nonidle() {
+	python3 - "$1" "$2" <<'PY'
+import sys
+
+def load(path):
+    irq, ts, idle = None, None, {}
+    for line in open(path):
+        f = line.split()
+        if not f:
+            continue
+        if f[0] == "IRQ":
+            irq = [int(x) for x in f[1:]]
+        elif f[0] == "TS":
+            ts = float(f[1])
+        elif f[0] == "IDLE":
+            idle[int(f[1])] = int(f[2])
+    return irq, ts, idle
+
+try:
+    i0, t0, d0 = load(sys.argv[1])
+    i1, t1, d1 = load(sys.argv[2])
+    delta = [b - a for a, b in zip(i0, i1)]
+    if max(delta) > 0:
+        cpu = max(range(len(delta)), key=lambda k: delta[k])
+    else:
+        cpu = max(range(len(i1)), key=lambda k: i1[k])
+    wall_us = (t1 - t0) * 1e6
+    nonidle = 100.0 * (1.0 - (d1[cpu] - d0[cpu]) / wall_us)
+    print("%.1f" % min(max(nonidle, 0.0), 100.0))
+except Exception:
+    print("-")
 PY
 }
 
@@ -260,7 +308,7 @@ measure() {
 	local workload=$1 param=$2 run=$3 parser=$4
 	shift 4
 	local raw="$OUT/${workload}_${param}_run${run}.txt"
-	local b0 t0 b1 t1 i0 i1 s0 s1 ts0 ts1 rc rates cpustats result status
+	local b0 t0 b1 t1 i0 i1 s0 s1 ts0 ts1 rc rates cpustats nonidle result status
 
 	snapshot_cpus "$OUT/.snap_before"
 	read -r b0 t0 < <(cpu_times)
@@ -277,6 +325,7 @@ measure() {
 	s1=$(softirq_net_rx)
 	snapshot_cpus "$OUT/.snap_after"
 	cpustats=$(irq_cpu_stats "$OUT/.snap_before" "$OUT/.snap_after")
+	nonidle=$(irq_cpu_nonidle "$OUT/.snap_before" "$OUT/.snap_after")
 	rm -f "$OUT/.snap_before" "$OUT/.snap_after"
 
 	rates=$(awk -v ts0="$ts0" -v ts1="$ts1" -v i0="$i0" -v i1="$i1" \
@@ -287,6 +336,7 @@ measure() {
 	if [ "$rc" -eq 0 ]; then
 		status=ok
 		result=$("$parser" "$raw")
+		[ "$nonidle" = "-" ] || result="$result;cpu_nonidle_pct=$nonidle"
 	else
 		status="fail($rc)"
 		result="-"
