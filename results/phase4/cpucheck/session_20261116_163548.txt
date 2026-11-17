@@ -1,0 +1,8 @@
+date: 2026-11-16T16:35:48+05:30
+command: scripts/run_matrix.sh -p 10.8.1.53 -o results/phase4/cpucheck -R 1 -V 6 -c off adaptive static-L4 -w udp udps -u 600M -r 50M 100M -m 100 -t 20
+kernel: 7.2.15-netquota
+r8169 srcversion: 04E8D19E5DCBE28E8305847
+governor: performance
+configurations: off adaptive static-L4  table: 40 80 200 400
+workloads: udp udps  udp: 600M  udps: 100B at 50M 100M, pacing 100  rrp: 8
+rounds: 1  runs per visit: 6  secs: 20

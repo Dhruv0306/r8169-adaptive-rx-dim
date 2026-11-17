@@ -200,7 +200,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 | 0004 | Level table, apply to `IntrMitigate`, ethtool semantics (save and restore of the static settings) | 2 |
 | 0005 | Keep single-packet traffic at DIM level 0 (fix for T5) | 2 |
 | 0006 | Re-apply after hardware start, link change, idle decay, teardown review | 3 |
-| 0007 | Tuned level table (only if tuning changed it) | 4 |
+| 0007 | Tuned level table (only if tuning changed it): not needed, the first table was kept | 4 |
 
 ## Phase tracker
 
@@ -212,5 +212,5 @@ Update this table when a phase finishes, and link its results file. Planned date
 | 1 | | 2026-11-10 | Done. Patches 0001 and 0002 built, signed and loaded. [Results](results/phase_1_plumbing.md) |
 | 2 | | 2026-11-14 | Done. Patches 0003, 0004 and 0005 built, signed and loaded; T1 to T11 pass (T5 needed the single-packet guard, patch 0005). Open item for Phase 4: 900M UDP dwells at low levels in some runs. [Results](results/phase_2_adaptive_core.md) |
 | 3 | | 2026-11-15 | Done. Patch 0006 (re-apply after hardware start, link change, idle decay, teardown) built, signed and loaded; F4 to F7 and F9 to F11 pass with no lockdep report (F7 with the bounce interval changed to one per recovery). Two findings outside the driver for Phase 4 and the report: a link-up takes about 35 s until traffic flows on this network, and a forced reset under load leaves RX dead for 20 s or more with adaptive mode off too. [Results](results/phase_3_robustness.md), [locking notes](locking.md) |
-| 4 | | | |
+| 4 | | 2026-11-16 | Done. Calibration, exploratory and final matrices (12 runs per cell, stock at both ends), level traces, stepped load and figures; the first table (0, 40, 80, 200, 400 us) passed the tuning rule and is kept, so there is no patch 0007. Open items: 900M UDP ramp-up is bimodal (a limit of what DIM observes, not of the table); one TX watchdog reset in a static-timer visit. [Results](results/phase_4_measurement_and_tuning.md) |
 | 5 | | | |
