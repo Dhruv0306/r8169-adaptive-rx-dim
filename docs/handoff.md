@@ -1,6 +1,6 @@
 # Handoff: r8169 adaptive receive interrupt moderation
 
-The state of the project as of 2026-11-16. It tells a newcomer (a new chat, or a new reader) what the project is, how the work is meant to be done, and where things stand. It is only for moving context between chats and is not a results log: what each phase did and found is in `docs/results/phase_<number>_<title>.md`, the phase summary is in `docs/phases.md`, and the detailed plan for each remaining phase is in `docs/plans/plan-<number>-<title>.md`. The original design is in `docs/plan.md`.
+The state of the project as of 2026-11-16 (Phase 4 done). It tells a newcomer (a new chat, or a new reader) what the project is, how the work is meant to be done, and where things stand. It is only for moving context between chats and is not a results log: what each phase did and found is in `docs/results/phase_<number>_<title>.md`, the phase summary is in `docs/phases.md`, and the detailed plan for each remaining phase is in `docs/plans/plan-<number>-<title>.md`. The original design is in `docs/plan.md`.
 
 ## 1. What this is
 
@@ -21,7 +21,7 @@ The change adds an adaptive receive interrupt moderation mode, built on the kern
 | Repository | https://github.com/Dhruv0306/r8169-adaptive-rx-dim. Phases 0 to 2 are merged into `main` (pull request #1, merge commit `0975339`); the merged branch `Dhruv_Patel/r8169-adaptive-core` is kept as a backup. Phase 3 is merged too (pull request #2, merge commit `4271139`); `Dhruv_Patel/r8169-robustness` is kept as a backup. Phase 4 work is on `Dhruv_Patel/r8169-measurement-tuning` |
 | Phase results | `docs/results/phase_0_environment_and_baseline.md` (done), `docs/results/phase_1_plumbing.md` (done), `docs/results/phase_2_adaptive_core.md` (done), `docs/results/phase_3_robustness.md` (done); locking notes in `docs/locking.md` |
 | Plans for the remaining phases | `docs/plans/plan-2-adaptive-core.md`, `plan-3-robustness.md`, `plan-4-measurement-and-tuning.md`, `plan-5-report-and-demo.md` |
-| Next | Phase 4 is in progress (`docs/plans/plan-4-measurement-and-tuning.md`, runbook in its section 9, results in `docs/results/phase_4_measurement_and_tuning.md`): the measurement scripts are written and tested on stand-ins; next are the calibration and the exploratory matrix on the PC. Read the Phase 3 findings in section 5 first |
+| Next | Phase 4 is done: the first table passed the tuning rule (no patch 0007), results in `docs/results/phase_4_measurement_and_tuning.md`. Remaining: Phase 5 (report and demo) |
 
 ## 3. Intended behaviour (as refined in the phase plans)
 
@@ -109,7 +109,7 @@ Since Phase 2 the build, sign and swap steps are one script, `bash scripts/build
 
 ## 7. Open items and next steps
 
-1. Phase 3 is done and merged (patch 0006, locking notes, tests). Phase 4 is under way: calibration, exploratory matrix, 900M dwell check, tuning rounds (patch 0007 only if the table changes), final matrix, stepped load, figures.
+1. Phases 3 and 4 are done. Phase 4 found no change to the level table necessary; the 900 Mbit/s ramp-up limitation is documented, not fixed.
 2. Phase 4 and 5 follow their plans. Rerun `stock` in Phase 4 with the updated benchmark script so every label has the per-CPU columns. Phase 4 must also look at two things recorded in the Phase 2 results: 900M UDP sometimes dwells at low levels (possible cause, not verified: below level 1 the single-packet guard counts fewer events than above it), and DIM changes level about 17 times per second under steady load (seen again as a 3 to 4 flapping during the Phase 3 tests). The all-CPU and IRQ-CPU columns are noisy, so repeat them. Benchmarks must not run within about 40 s of a link-up (section 5).
 3. Not known yet: the course deadline and the required format of the report and demo (Phase 5), and the peer machine's kernel and NIC, which the meta files do not record.
 

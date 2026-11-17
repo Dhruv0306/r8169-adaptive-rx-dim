@@ -4,7 +4,7 @@ Adaptive receive interrupt moderation for the Linux `r8169` driver (Realtek RTL8
 
 Coursework project for Advanced Operating Systems (CS G623), BITS Pilani Goa. Target kernel: Linux 7.2.15.
 
-> **Status:** Phases 0 to 3 are done (baseline, plumbing, the adaptive core and robustness; patches 0001 to 0006 in `patches/`). Phase 4 (measurement and tuning) is in progress. Phase results are in [`docs/results/`](docs/results/).
+> **Status:** Phases 0 to 4 are done (baseline, plumbing, the adaptive core, robustness, measurement and tuning; patches 0001 to 0006 in `patches/`). Phase results are in [`docs/results/`](docs/results/).
 
 ## Why
 

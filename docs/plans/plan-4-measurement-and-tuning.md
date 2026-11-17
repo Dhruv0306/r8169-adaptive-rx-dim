@@ -1,6 +1,6 @@
 # Plan for Phase 4: Measurement and tuning
 
-Status: in progress (started 2026-11-16; the measurement scripts of step 1 are written, the sessions on the PC are next). Depends on Phase 3 (a stable module, done). High-level summary: [`../phases.md`](../phases.md), Phase 4. Results go in `docs/results/phase_4_measurement_and_tuning.md`, raw logs in `results/`.
+Status: done (2026-11-16). The first table passed the tuning rule, so no tuning round was run. Depends on Phase 3 (a stable module, done). High-level summary: [`../phases.md`](../phases.md), Phase 4. Results go in `docs/results/phase_4_measurement_and_tuning.md`, raw logs in `results/`.
 
 Machine tags: **[Claude]** work in the chat, **[PC]** machine under test (root, at the console), **[PEER]** second machine, **[repo]** project repository.
 
