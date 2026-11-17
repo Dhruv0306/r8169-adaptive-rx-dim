@@ -12,7 +12,7 @@ No new features and no new measurements, except re-measuring if the final series
 
 ## 2. Inputs
 
-- Final patches 0001 to 0007 (0007 only if tuning changed the table), built and measured in Phase 4.
+- Final patches 0001 to 0006 (Phase 4 kept the first table, so there is no 0007), built and measured in Phase 4.
 - `docs/results/phase_0` to `phase_4`, `docs/locking.md`, raw logs in `results/`.
 - The course requirements for the report and the demo (format, length, date, who watches the demo). These are not known yet; ask the professor or read the course page before step 2.
 
@@ -33,10 +33,10 @@ No new features and no new measurements, except re-measuring if the final series
    | Design | Decisions D1 to D9 of Phase 2 and D1 to D7 of Phase 3, and why |
    | Implementation | The patch series, file by file |
    | Locking | Condensed from `docs/locking.md` |
-   | Method | Machines, tools, configurations, workloads, runs, metrics (and why the all-CPU busy figure was dropped) |
+   | Method | Machines, tools, configurations, workloads, runs, metrics (and why the tick-sampled `/proc/stat` CPU percentages were replaced by the cpuidle-based figure of the interrupt CPU) |
    | Results | The tables and figures of Phase 4, the baseline, the stepped-load figure |
    | Discussion | Where adaptive moderation helps, where it does not, why bulk TCP leaves nothing to win, the latency cost of static timers, limits |
-   | Limitations | One chip variant, one peer, one link speed, 1 Gbit/s, powersave governor, number of runs |
+   | Limitations | One chip variant, one peer, one link speed, 1 Gbit/s, governor `powersave` in Phases 0 to 3 and `performance` with the interrupt pinned in Phase 4, number of runs, the 900M UDP ramp-up and the one TX watchdog reset |
    | Conclusion and future work | RTL8125, TX moderation, tuning per CPU, upstream submission would need review |
    | Appendix | Commands to reproduce, repository layout, raw-data folders |
 

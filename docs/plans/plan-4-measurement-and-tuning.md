@@ -8,7 +8,7 @@ Machine tags: **[Claude]** work in the chat, **[PC]** machine under test (root, 
 
 Measure whether adaptive moderation helps, with the same rigour as the Phase 0 baseline, tune the level table from the data, freeze it, and report the result whatever it is. A small or negative gain is an acceptable outcome (plan.md, section 5.5).
 
-Patch series: 0007, only if tuning changes the table.
+Patch series: 0007 only if tuning changes the table (outcome: it did not, so there is no 0007).
 
 ## 2. What the Phase 0 baseline already says (so the matrix is aimed well)
 
