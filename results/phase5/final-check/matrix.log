@@ -1,0 +1,25 @@
+2026-11-18T15:13:29+05:30 governor set to performance on 20 CPUs
+2026-11-18T15:13:29+05:30 round 1/1: configuration off (runs 1 to 3)
+2026-11-18T15:13:29+05:30 off applied: adaptive=off rx-usecs=0 rx-frames=1
+off,rr,64B,1,20.01,25773.3,38787.7,1.2,3,13.8,10.8,ok,tps=12889.47;mean_lat_us=77.55;min_lat_us=60;max_lat_us=570;stddev_us=10.05;cpu_nonidle_pct=19.0
+off,rr,64B,2,20.01,26331.2,39636.6,1.1,3,13.9,11.3,ok,tps=13168.84;mean_lat_us=75.91;min_lat_us=54;max_lat_us=535;stddev_us=9.01;cpu_nonidle_pct=18.4
+off,rr,64B,3,20.01,26452.1,39822.2,1.1,3,14.2,11.7,ok,tps=13229.99;mean_lat_us=75.56;min_lat_us=59;max_lat_us=445;stddev_us=8.98;cpu_nonidle_pct=17.7
+off,udps,100B-p100-50M,1,20.01,19073.4,39082.1,0.4,3,5.4,5.2,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0068;pps=62500;cpu_nonidle_pct=23.6
+off,udps,100B-p100-100M,1,20.01,17211.3,38353.9,1.5,3,22.2,19.4,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0035;pps=125000;cpu_nonidle_pct=33.7
+off,udps,100B-p100-50M,2,20.01,19980.0,39991.4,1.7,3,24.1,22.3,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0066;pps=62500;cpu_nonidle_pct=25.5
+off,udps,100B-p100-100M,2,20.01,13999.0,38751.1,2.1,3,28.3,21.9,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0050;pps=125000;cpu_nonidle_pct=39.6
+off,udps,100B-p100-50M,3,20.01,19971.2,40012.0,2.3,3,33.5,22.7,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0071;pps=62500;cpu_nonidle_pct=24.9
+off,udps,100B-p100-100M,3,20.01,19505.7,39965.4,3.3,3,32.4,29.3,ok,mbit=100.0;loss_pct=0.0048;jitter_ms=0.0038;pps=125000;cpu_nonidle_pct=34.6
+2026-11-18T15:16:53+05:30 round 1/1: configuration adaptive (runs 1 to 3)
+2026-11-18T15:16:53+05:30 adaptive applied: adaptive=on rx-usecs=0 rx-frames=1
+adaptive,rr,64B,1,20.01,25897.2,38986.4,1.1,3,13.5,10.7,ok,tps=12951.06;mean_lat_us=77.19;min_lat_us=54;max_lat_us=460;stddev_us=11.11;cpu_nonidle_pct=17.8
+adaptive,rr,64B,2,20.01,26162.6,39404.5,1.0,3,12.3,10.5,ok,tps=13085.32;mean_lat_us=76.40;min_lat_us=60;max_lat_us=202615;stddev_us=396.02;cpu_nonidle_pct=14.8
+adaptive,rr,64B,3,20.01,26526.9,39948.6,1.1,3,13.6,11.7,ok,tps=13266.76;mean_lat_us=75.35;min_lat_us=54;max_lat_us=492;stddev_us=8.99;cpu_nonidle_pct=17.5
+adaptive,udps,100B-p100-50M,1,20.01,2848.5,6612.2,1.2,3,3.9,1.2,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0148;pps=62500;cpu_nonidle_pct=21.0
+adaptive,udps,100B-p100-100M,1,20.01,3140.9,10141.4,1.3,3,6.0,3.8,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0046;pps=125000;cpu_nonidle_pct=26.3
+adaptive,udps,100B-p100-50M,2,20.01,2805.7,6545.9,1.0,3,7.2,3.3,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0165;pps=62500;cpu_nonidle_pct=23.2
+adaptive,udps,100B-p100-100M,2,20.01,3323.4,9062.3,1.0,3,4.9,1.8,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0065;pps=125000;cpu_nonidle_pct=23.8
+adaptive,udps,100B-p100-50M,3,20.01,2775.8,6437.5,1.0,3,5.8,2.5,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0153;pps=62500;cpu_nonidle_pct=21.7
+adaptive,udps,100B-p100-100M,3,20.01,3254.9,9073.9,1.4,3,8.4,4.6,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0061;pps=125000;cpu_nonidle_pct=26.1
+2026-11-18T15:20:17+05:30 matrix finished
+2026-11-18T15:20:17+05:30 stopped; the device is back to adaptive off, rx-usecs 0
