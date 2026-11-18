@@ -6,6 +6,19 @@ Coursework project for Advanced Operating Systems (CS G623), BITS Pilani Goa. Ta
 
 > **Status:** All phases are done (baseline, plumbing, the adaptive core, robustness, measurement and tuning, report and demo; patches 0001 to 0006 in `patches/`). The report is [`docs/report.md`](docs/report.md) and the demo run sheet is [`docs/demo.md`](docs/demo.md). Phase results are in [`docs/results/`](docs/results/).
 
+## Documentation
+
+| Read | For |
+|---|---|
+| [`docs/README.md`](docs/README.md) | The map of all documents |
+| [`docs/project-explained.md`](docs/project-explained.md) | The project in detail: problem, design, code |
+| [`docs/diagrams/`](docs/diagrams/README.md) | Diagrams: an overview and one detail diagram per part |
+| [`docs/results-explained.md`](docs/results-explained.md) | What was measured and what each result means |
+| [`docs/setup-and-testing.md`](docs/setup-and-testing.md) | How to set the project up and test each phase |
+| [`docs/demo-and-questions.md`](docs/demo-and-questions.md) | How to run the demo and which questions to expect |
+| [`docs/kernel-changes.md`](docs/kernel-changes.md) | The kernel files changed and why |
+| [`docs/merge-to-shared-repo.md`](docs/merge-to-shared-repo.md) | How to merge the private repository back |
+
 ## Why
 
 The RTL8111/8168 can hold back receive interrupts in hardware so that one interrupt covers several packets. Today the driver only lets the user set that delay by hand with `ethtool -C`, and it starts with the delay switched off. Nothing adjusts it as traffic changes.

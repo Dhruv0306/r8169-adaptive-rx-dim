@@ -4,6 +4,10 @@ Dhruv Rakeshbhai Patel, M.E. Computer Science, BITS Pilani Goa. Course project, 
 
 ## 1. Summary
 
+![How the project works](diagrams/img/00-overview.svg)
+
+The picture is the [overview diagram](diagrams/00-overview.md); the detail diagrams are listed in [`diagrams/README.md`](diagrams/README.md). Other documents: [project explained](project-explained.md), [results explained](results-explained.md), [kernel changes](kernel-changes.md), [setup and testing](setup-and-testing.md), [demo and questions](demo-and-questions.md).
+
 **Goal.** The `r8169` driver (Realtek RTL8111/8168 Gigabit Ethernet) can ask the hardware to hold back receive interrupts so that one interrupt covers several packets, but only with a fixed delay set by hand through `ethtool -C`, and it starts with no delay. A fixed delay is a bad fit for changing traffic: it saves CPU time under a heavy load and slows every reply under a light one. The project makes the delay follow the load.
 
 **What was built.** An adaptive mode, switched with `ethtool -C <dev> adaptive-rx on|off`, built on the kernel's DIM library (the library that drivers such as `virtio_net` use for this). DIM watches packets, bytes and poll events per millisecond and picks one of five levels. The driver maps the levels to timer values of 0, 40, 80, 200 and 400 microseconds and writes them to the receive timer field of the `IntrMitigate` register. The change is six patches against `v7.2.15`, 374 added and 31 removed lines in `r8169_main.c` and its `Kconfig`. With the flag off the driver behaves like the stock one.
@@ -19,6 +23,8 @@ Dhruv Rakeshbhai Patel, M.E. Computer Science, BITS Pilani Goa. Course project, 
 
 ## 2. Background
 
+
+See [diagram 1](diagrams/01-poll-and-sampling.md) for the receive path and [diagram 2](diagrams/02-dim-decision.md) for what DIM does; a longer treatment is in [project explained, section 2](project-explained.md).
 ### 2.1 The receive path
 
 `r8169` has one receive queue and one NAPI context. The interrupt handler `rtl8169_interrupt()` masks the interrupts and schedules NAPI. `rtl8169_poll()` then runs `rtl_tx()` and `rtl_rx()`, calls `napi_complete_done()` and unmasks the interrupts. Under a heavy load NAPI already batches packets, because the poll keeps running while packets are waiting. Interrupt moderation in hardware matters in the middle range, where packets come fast enough to cause many interrupts but not so fast that the poll never ends.
@@ -33,6 +39,8 @@ DIM (`include/linux/dim.h`, `lib/dim`) is the kernel's library for dynamic inter
 
 ## 3. Design
 
+
+The design is drawn in the [overview](diagrams/00-overview.md) and in diagrams [1](diagrams/01-poll-and-sampling.md) to [6](diagrams/06-locking.md); the patch order is in [diagram 8](diagrams/08-series-and-build.md).
 The design is in `docs/plan.md` and the phase plans. The decisions that shaped the code:
 
 | Decision | Why |
@@ -51,6 +59,8 @@ The design is in `docs/plan.md` and the phase plans. The decisions that shaped t
 
 ## 4. Implementation
 
+
+Diagrams: [apply the level](diagrams/03-apply-level.md) (4.2), [ethtool control](diagrams/04-ethtool-control.md), [lifecycle](diagrams/05-lifecycle.md) (4.4). The changed functions are listed in [kernel changes](kernel-changes.md).
 The series is in `patches/`, applies in order with `patch -p1` (or `git am`) on `v7.2.15`, and only touches `drivers/net/ethernet/realtek/r8169_main.c` and `drivers/net/ethernet/realtek/Kconfig`.
 
 | Patch | Content |
@@ -83,6 +93,8 @@ The first version of the core failed its own request-response test: with adaptiv
 
 ## 5. Locking
 
+
+Diagram: [locking and contexts](diagrams/06-locking.md).
 (Condensed from `docs/locking.md`, which has the full tables.)
 
 | Lock | Kind | Held by |
@@ -97,6 +109,8 @@ The races that remain (the decay work resetting DIM while `net_dim()` runs, the 
 
 ## 6. Method
 
+
+The setup is drawn in [diagram 7](diagrams/07-measurement-setup.md); how to repeat it is in [setup and testing](setup-and-testing.md).
 ### 6.1 Machines and conditions
 
 | Item | Value |
@@ -129,6 +143,8 @@ iperf3 paces its sending with a 1 ms timer by default, so packets arrive in burs
 
 ## 7. Results
 
+
+Each result is explained, with its mechanism, in [results explained](results-explained.md).
 All numbers are from `results/phase4/final/` (12 runs per cell), as listed in `docs/results/phase_4_measurement_and_tuning.md`, section 4.4. Mean values, `adaptive` against `off`; a difference inside the standard deviation is noise.
 
 ### 7.1 Where adaptive mode matters
