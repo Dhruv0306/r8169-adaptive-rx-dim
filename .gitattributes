@@ -38,3 +38,6 @@ LICENSES/* text eol=lf
 *.patch  linguist-documentation
 docs/*   linguist-documentation
 results/* linguist-generated
+
+# The typescript has CRLF line endings and the timing file counts bytes, so no conversion
+results/phase5/fallback/* -text

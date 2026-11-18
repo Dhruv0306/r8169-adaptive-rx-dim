@@ -1,0 +1,10 @@
+label,workload,param,run,secs,irq_per_s,net_rx_softirq_per_s,cpu_busy_pct,irq_cpu,irq_cpu_busy_pct,irq_cpu_softirq_pct,status,result
+adaptive,rr,64B,1,20.01,25897.2,38986.4,1.1,3,13.5,10.7,ok,tps=12951.06;mean_lat_us=77.19;min_lat_us=54;max_lat_us=460;stddev_us=11.11;cpu_nonidle_pct=17.8
+adaptive,rr,64B,2,20.01,26162.6,39404.5,1.0,3,12.3,10.5,ok,tps=13085.32;mean_lat_us=76.40;min_lat_us=60;max_lat_us=202615;stddev_us=396.02;cpu_nonidle_pct=14.8
+adaptive,rr,64B,3,20.01,26526.9,39948.6,1.1,3,13.6,11.7,ok,tps=13266.76;mean_lat_us=75.35;min_lat_us=54;max_lat_us=492;stddev_us=8.99;cpu_nonidle_pct=17.5
+adaptive,udps,100B-p100-50M,1,20.01,2848.5,6612.2,1.2,3,3.9,1.2,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0148;pps=62500;cpu_nonidle_pct=21.0
+adaptive,udps,100B-p100-100M,1,20.01,3140.9,10141.4,1.3,3,6.0,3.8,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0046;pps=125000;cpu_nonidle_pct=26.3
+adaptive,udps,100B-p100-50M,2,20.01,2805.7,6545.9,1.0,3,7.2,3.3,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0165;pps=62500;cpu_nonidle_pct=23.2
+adaptive,udps,100B-p100-100M,2,20.01,3323.4,9062.3,1.0,3,4.9,1.8,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0065;pps=125000;cpu_nonidle_pct=23.8
+adaptive,udps,100B-p100-50M,3,20.01,2775.8,6437.5,1.0,3,5.8,2.5,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0153;pps=62500;cpu_nonidle_pct=21.7
+adaptive,udps,100B-p100-100M,3,20.01,3254.9,9073.9,1.4,3,8.4,4.6,ok,mbit=100.0;loss_pct=0.0000;jitter_ms=0.0061;pps=125000;cpu_nonidle_pct=26.1
