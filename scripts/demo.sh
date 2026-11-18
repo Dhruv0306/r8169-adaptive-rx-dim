@@ -89,19 +89,20 @@ stage() {
 	printf '\n==== %s ====\n' "$1"
 }
 
-# Print "time level interrupts/s bar" twice a second for SECS seconds.
+# Print "time level interrupts/s bar" every IV seconds (default 0.5) for
+# SECS seconds.
 watch_level() {
-	local secs=$1 n us prev now rate bar t0
+	local secs=$1 iv=${2:-0.5} n us prev now rate bar t0
 	t0=$(date +%s.%N)
 	prev=$(nic_irqs)
-	n=$((secs * 2))
+	n=$(awk -v s="$secs" -v i="$iv" 'BEGIN {printf "%d", s / i}')
 	printf '%6s  %8s  %8s\n' "time" "rx-usecs" "irq/s"
 	while [ "$n" -gt 0 ]; do
 		n=$((n - 1))
-		sleep 0.5
+		sleep "$iv"
 		us=$(rx_usecs)
 		now=$(nic_irqs)
-		rate=$(((now - prev) * 2))
+		rate=$(awk -v d=$((now - prev)) -v i="$iv" 'BEGIN {printf "%d", d / i}')
 		prev=$now
 		bar=$(printf '%*s' $((${us:-0} / 20)) '' | tr ' ' '#')
 		printf '%5.1fs  %6s us  %8d  %s\n' "$(awk -v a="$(date +%s.%N)" -v b="$t0" 'BEGIN {print a - b}')" "${us:-0}" "$rate" "$bar"
@@ -152,11 +153,12 @@ run_burst
 watch_level "$BURST"
 wait "$BURST_PID" 2> /dev/null
 BURST_PID=""
-pause
 
+# no pause here: the level falls within about half a second of the last
+# packet, so the next stage starts at once and samples faster
 stage "4. The burst has ended"
 echo "The level falls back to 0 when the packets stop (about 0.4 s)."
-watch_level "$IDLE"
+watch_level "$IDLE" 0.2
 pause
 
 stage "5. Request-response (one packet at a time)"
