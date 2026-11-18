@@ -1,6 +1,6 @@
 # Phase 5: Report and demo, results
 
-Status: in progress (2026-11-18). The report, the demo script and its run sheet, and the series check script are written, the clean-tree checks are done, the matched `final-check` run agrees with the Phase 4 final matrix, and the demo was rehearsed three times. Still to do: the fallback recording and the tag. Plan: [`../plans/plan-5-report-and-demo.md`](../plans/plan-5-report-and-demo.md).
+Status: done (2026-11-18). The report, the demo script and its run sheet, and the series check script are written, the clean-tree checks are done, the matched `final-check` run agrees with the Phase 4 final matrix, the demo was rehearsed three times and a fallback session is recorded. The tag `v1.0` is set after this branch is merged. Plan: [`../plans/plan-5-report-and-demo.md`](../plans/plan-5-report-and-demo.md).
 
 ## 1. What was delivered
 
@@ -11,7 +11,8 @@ Status: in progress (2026-11-18). The report, the demo script and its run sheet,
 | Report | `docs/report.md` | Written in Markdown from the Phase 0 to 4 results files and logs. Format asked by the course: **unknown**, see section 5 |
 | Demo script and run sheet | `scripts/demo.sh`, `docs/demo.md` | Rehearsed three times on the machine, the third time with the stage 4 change (section 4) |
 | README, handoff, phase tracker | `README.md`, `docs/handoff.md`, `docs/phases.md` | Updated |
-| Tag | `v1.0` | **pending** |
+| Fallback recording | `results/phase5/fallback/` | Recorded and replayed (section 4) |
+| Tag | `v1.0` | Set on `main` after the merge of this branch |
 
 ## 2. Checks on a clean tree (done 2026-11-18, not on the PC)
 
@@ -80,14 +81,21 @@ The numbers of all three rehearsals agree with the Phase 4 final matrix (`rr` 12
 
 With the change the fall can be seen as a step between two rows (200 us, then 0 us 0.2 s later), but the trace does not resolve its timing: the gap between the last row of stage 3 and the first row of stage 4 is the time iperf3 needs to exit. The measured time is 0.39 s (Phase 3, `decay_timing.sh`).
 
-**Pending:** one recorded fallback session (`script`, run the demo inside it, see the run sheet). The first attempt recorded nothing because the demo was not run inside the session.
+### Fallback recording
+
+`results/phase5/fallback/` holds a full `-t long` run recorded with `script -q -T demo-timing.txt -c "bash scripts/demo.sh -p PEER -t long" demo-session.txt` (2026-11-18, same module and kernel). Replay it with:
+
+```bash
+scriptreplay -T results/phase5/fallback/demo-timing.txt -s results/phase5/fallback/demo-session.txt -d 4   # -d 4: four times faster
+```
+
+All six stages are in it. Burst: level 400 us with 3,054 to 3,460 irq/s after a first row of 15,716 irq/s (the ramp-up), and 200 us in 2 of 30 samples; the last row of stage 3 shows 400 us with 6 irq/s, the burst ending, and stage 4 shows 0 us from its first row. Idle: 0 to 12 irq/s (one row of 118). Request-response at level 0: 13,107 transactions/s at 76.3 us; fixed 400 us: 1,614 at 619.4 us. The files are marked `-text` in `.gitattributes`: the typescript has CRLF line endings and the timing file counts bytes, so a line-ending conversion would break the replay. Two earlier attempts were discarded (the first recorded nothing, the second nested two `script` sessions and wrote a garbled file).
 
 ## 5. Open items
 
 - The course requirements (report format and length, deadline, who watches the demo) are still unknown. The report is Markdown. If the course asks for a PDF, Word file or slides, make it from `docs/report.md`; the sections are ordered for that.
 - `sparse` was never run on the series (Phase 3 and here).
-- The fallback recording is not done yet.
-- The `v1.0` tag and the final cleanup (`git status` clean, no stray files) wait for the fallback recording.
+- The `v1.0` tag is set on `main` after the merge of the Phase 5 branch, with `git status` clean and no stray files.
 
 ## 6. Repository state
 
