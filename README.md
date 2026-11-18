@@ -4,7 +4,7 @@ Adaptive receive interrupt moderation for the Linux `r8169` driver (Realtek RTL8
 
 Coursework project for Advanced Operating Systems (CS G623), BITS Pilani Goa. Target kernel: Linux 7.2.15.
 
-> **Status:** Phases 0 to 4 are done (baseline, plumbing, the adaptive core, robustness, measurement and tuning; patches 0001 to 0006 in `patches/`). Phase results are in [`docs/results/`](docs/results/).
+> **Status:** Phases 0 to 4 are done (baseline, plumbing, the adaptive core, robustness, measurement and tuning; patches 0001 to 0006 in `patches/`). Phase 5 (report and demo) is in progress: the report is [`docs/report.md`](docs/report.md) and the demo run sheet is [`docs/demo.md`](docs/demo.md). Phase results are in [`docs/results/`](docs/results/).
 
 ## Why
 
@@ -45,6 +45,15 @@ Measured on the target machine (RTL8168h at 1 Gbit/s, one peer, 5 runs of 20 sec
 - UDP at fixed rates shows fewer NET_RX softirqs with a timer (for example -17% at 600 Mbit/s with 50 microseconds) and no packet loss in either case.
 - A small or negative gain from adaptive moderation is a likely outcome on this link, and the project reports whatever it finds.
 
+## Results in short
+
+Final matrix of Phase 4 (RTL8168h at 1 Gbit/s, one peer, 12 runs per cell; full tables in [`docs/results/phase_4_measurement_and_tuning.md`](docs/results/phase_4_measurement_and_tuning.md) and the [report](docs/report.md)):
+
+- Small-packet UDP (100 byte datagrams, 50 and 100 Mbit/s): the receive softirq rate falls by 77 to 82% and the interrupt CPU's non-idle time by 15 to 31%, with no change in throughput or loss. UDP at 600 Mbit/s: -55% and -22%.
+- Request-response (one stream or eight) is the same as with adaptive mode off, while a fixed 80 us timer costs 42% and a fixed 400 us timer 87% of the transactions per second.
+- Bulk TCP is unchanged. At 900 Mbit/s UDP the gain is partial because DIM often ramps up late.
+- With adaptive mode off the driver matches the stock driver.
+
 ## Scope and limits
 
 - Chips that the driver already treats as coalescing-capable. RTL8125 (2.5G) chips return `-EOPNOTSUPP` from the coalescing functions and are out of scope.
@@ -69,9 +78,9 @@ Tools: `iperf3`, `netperf` or `sockperf`, `ping`, `mpstat`, `/proc/interrupts`, 
 
 Functional and robustness tests cover on/off toggling, invalid settings, adaptive-off parity with stock, interface down/up, link speed change, suspend/resume, a stress loop with module reloads, and `checkpatch.pl --strict`, `sparse` and `make W=1`.
 
-## Building and testing (proposed, not yet run)
+## Building and testing
 
-These steps are a proposal and the paths are assumptions for the author's machine.
+The steps below are what was used on the author's machine; the paths are his. The recipe with the outputs is in [`docs/results/phase_1_plumbing.md`](docs/results/phase_1_plumbing.md), and the full list of scripts is in [`docs/handoff.md`](docs/handoff.md), section 6.
 
 ```bash
 cd /usr/src/linux-7.2.15
@@ -89,7 +98,7 @@ ethtool -c <dev>
 sudo ethtool -C <dev> adaptive-rx on
 ```
 
-If `CONFIG_DIMLIB` is off in the running kernel, the new module cannot load until the library is built too.
+If `CONFIG_DIMLIB` is off in the running kernel, the new module cannot load until the library is built too. If the kernel enforces module signatures, sign the module before loading it; `bash scripts/build_sign_load.sh [kernel tree]` builds with `W=1`, signs, swaps and loads it. To check the patch series on a clean `v7.2.15` tree: `bash scripts/check_series.sh -t <kernel git tree> -c`. To run the live demo: `bash scripts/demo.sh -p <peer>` (run sheet in [`docs/demo.md`](docs/demo.md)).
 
 **Warning:** on the test machine the NIC is the only network connection. Do not test over a network session into the same machine, keep a console or phone tether ready, and always keep a copy of the stock `r8169` module.
 
@@ -103,27 +112,27 @@ patch -p1 < 0001-<name>.patch
 
 On Windows, clone or pull on the Linux machine rather than copying files across, since CRLF line endings break `patch`.
 
-## Repository layout (planned)
+## Repository layout
 
 ```
-docs/        plan.md, phases.md, handoff.md (context for a new chat), locking.md (Phase 3), final report
+docs/        plan.md, phases.md, handoff.md (context for a new chat), locking.md, report.md (final report), demo.md (demo run sheet), figures/
 docs/plans/   detailed plan per remaining phase: plan-<number>-<title>.md
 docs/results/ one file per phase: phase_<number>_<title>.md
 patches/     git format-patch series against v7.2.15
-scripts/     rx_bench.sh, read_intrmit.sh, summarize_results.py (each starts with an SPDX line)
-results/     raw logs from the baseline and final runs
+scripts/     benchmark, matrix, level sampling, stepped load, demo and series check scripts (each starts with an SPDX line)
+results/     raw logs: baseline/ (Phases 0 to 3) and phase4/ (calibration, exploratory, final, stepped)
 ```
 
 ## Plan
 
-Six phases, each ending with something that builds and loads. Full detail (tasks, files, tests, exit criteria, risks) is in [`docs/phases.md`](docs/phases.md).
+Six phases, each ending with something that builds and loads (the table shows the plan; the phase tracker in `docs/phases.md` has the dates and what actually happened). Full detail (tasks, files, tests, exit criteria, risks) is in [`docs/phases.md`](docs/phases.md).
 
 | Phase | Goal | Output | Done when |
 |---|---|---|---|
 | 0. Environment and baseline | Answer the open questions (chip variant, link speed, `DIMLIB`, second machine), back up the stock module, measure the stock driver | Updated handoff, baseline logs, repository | Every unknown is recorded and the unmodified module builds with a matching vermagic |
 | 1. Plumbing | `select DIMLIB`, new struct fields, `adaptive-rx` flag in ethtool, no hardware effect | Patches 0001 and 0002 | The flag is accepted and reported, and the driver behaves exactly like stock |
-| 2. Adaptive core | RX counters, DIM sampling in `rtl8169_poll()`, work function writing `IntrMitigate`, first level table | Patch 0003 | The level rises under bulk load and falls at idle, with no warnings |
-| 3. Robustness | Re-apply after hardware start and link change, cancel on down, locking review under lockdep | Patch 0004, `docs/locking.md` | Down/up, speed change, resume and a stress loop pass with no lockdep report or oops |
+| 2. Adaptive core | RX counters, DIM sampling in `rtl8169_poll()`, work function writing `IntrMitigate`, first level table, single-packet guard | Patches 0003 to 0005 | The level rises under bulk load and falls at idle, with no warnings |
+| 3. Robustness | Re-apply after hardware start and link change, idle decay, cancel on down, locking review under lockdep | Patch 0006, `docs/locking.md` | Down/up, speed change, resume and a stress loop pass with no lockdep report or oops |
 | 4. Measurement and tuning | Four configurations across all workloads, repeated runs, table tuned from data | Raw logs, graphs (patch 0007 was not needed: the first table was kept) | Every cell has repeated runs and the conclusion matches the numbers |
 | 5. Report and demo | Final patch series, report, demo on the real machine | `patches/`, report, demo script | A clean tree plus the patches builds, loads and runs the demo |
 
@@ -137,7 +146,7 @@ Each remaining phase has a detailed plan in [`docs/plans/`](docs/plans/). Result
 
 ## License
 
-GPL-2.0-only, matching the Linux kernel. See `LICENSES/GPL-2.0` once added.
+GPL-2.0-only, matching the Linux kernel. See `LICENSES/GPL-2.0`.
 
 ## Author
 
