@@ -1,0 +1,71 @@
+
+==== 1. The module and the flag (adaptive off) ====
+kernel 7.2.15-netquota, r8169 srcversion 04E8D19E5DCBE28E8305847
+driver: r8169
+version: 7.2.15-netquota
+Adaptive RX: off  TX: n/a
+rx-usecs:	0
+rx-frames:	1
+rx-usecs-irq:	n/a
+rx-usecs-low:	n/a
+rx-usecs-high:	n/a
+The stock driver prints 'Adaptive RX: n/a' here and refuses the flag.
+
+==== 2. Adaptive mode on, no traffic ====
+Adaptive RX: on  TX: n/a
+  time  rx-usecs     irq/s
+  0.5s       0 us         6  
+  1.0s       0 us         2  
+  1.6s       0 us         2  
+  2.1s       0 us         0  
+  2.6s       0 us         4  
+  3.1s       0 us         0  
+  3.6s       0 us         2  
+  4.1s       0 us         4  
+
+==== 3. A burst of small UDP packets from the peer ====
+Watch rx-usecs rise and irq/s fall.
+  time  rx-usecs     irq/s
+  0.5s     400 us      3320  ####################
+  1.0s     400 us      3228  ####################
+  1.5s     200 us      3242  ##########
+  2.1s     400 us      3182  ####################
+  2.6s     400 us      3252  ####################
+  3.1s     400 us      3386  ####################
+  3.6s     400 us      3294  ####################
+  4.1s     400 us      3304  ####################
+  4.6s     400 us      3318  ####################
+  5.2s     400 us      3236  ####################
+  5.7s     400 us      3300  ####################
+  6.2s     400 us      3330  ####################
+  6.7s     400 us      3392  ####################
+  7.2s     400 us      3372  ####################
+  7.7s     400 us      3238  ####################
+  8.3s     400 us      1746  ####################
+
+==== 4. The burst has ended ====
+The level falls back to 0 when the packets stop (about 0.4 s).
+  time  rx-usecs     irq/s
+  0.5s       0 us         0  
+  1.0s       0 us         4  
+  1.6s       0 us         2  
+  2.1s       0 us         4  
+  2.6s       0 us         0  
+  3.1s       0 us         2  
+  3.6s       0 us         2  
+  4.1s       0 us         6  
+
+==== 5. Request-response (one packet at a time) ====
+adaptive on, level stays at 0:
+  13116 transactions/s, mean latency 76.2 us
+level now: 0 us
+for comparison, a fixed 400 us timer (adaptive off):
+  1660 transactions/s, mean latency 602.4 us
+
+==== 6. Back to the starting state ====
+Adaptive RX: off  TX: n/a
+rx-usecs:	0
+rx-usecs-irq:	n/a
+rx-usecs-low:	n/a
+rx-usecs-high:	n/a
+Done.

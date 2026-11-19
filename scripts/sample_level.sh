@@ -4,7 +4,9 @@
 # Print the r8169 RX interrupt timer a few times a second as CSV, so the
 # DIM level can be plotted against time. Run as root. Stop with Ctrl-C.
 #
-# usage: sample_level.sh DEV [INTERVAL_SECONDS]   (default 0.2)
+# usage: [T0=EPOCH] sample_level.sh DEV [INTERVAL_SECONDS]   (default 0.2)
+# T0 is the start of the time axis in seconds since the epoch (default: now),
+# so that several tools can share one clock (see stepped_load.sh).
 #
 # Columns: time_s, rx_timer_field, rx_usecs (ethtool -c), irq_count.
 # The level is read from the live register through "ethtool -c", so it
@@ -15,7 +17,7 @@ set -eu
 [ $# -ge 1 ] || { echo "usage: $0 DEV [INTERVAL]" >&2; exit 2; }
 dev=$1
 iv=${2:-0.2}
-t0=$(date +%s.%N)
+t0=${T0:-$(date +%s.%N)}
 
 echo "time_s,rx_timer_field,rx_usecs,irq_count"
 while true; do

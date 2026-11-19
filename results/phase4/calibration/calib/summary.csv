@@ -1,0 +1,16 @@
+label,workload,param,run,secs,irq_per_s,net_rx_softirq_per_s,cpu_busy_pct,irq_cpu,irq_cpu_busy_pct,irq_cpu_softirq_pct,status,result
+calib,udps,100B-20M,1,15.01,2003.9,3106.7,3.9,3,10.1,0.1,ok,mbit=20.0;loss_pct=0.0000;jitter_ms=0.0207;pps=25000
+calib,udps,100B-50M,1,15.02,2002.5,2657.5,5.2,3,3.3,2.0,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0067;pps=62499
+calib,udps,100B-100M,1,15.02,2000.9,6274.8,4.8,3,89.9,89.5,ok,mbit=100.0;loss_pct=0.0063;jitter_ms=0.0127;pps=125001
+calib,udps,100B-200M,1,15.02,1976.8,22791.4,0.1,3,0.8,0.7,ok,mbit=200.0;loss_pct=0.0317;jitter_ms=0.0052;pps=250001
+calib,udps,100B-300M,1,15.01,17.9,29277.6,4.5,3,41.4,35.1,ok,mbit=204.1;loss_pct=0.1363;jitter_ms=0.0040;pps=255071
+calib,udps,100B-20M,2,15.02,2001.0,3344.4,0.2,3,0.0,0.0,ok,mbit=20.0;loss_pct=0.0000;jitter_ms=0.0112;pps=25000
+calib,udps,100B-50M,2,15.02,2006.7,3276.4,5.3,3,4.5,3.9,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0062;pps=62500
+calib,udps,100B-100M,2,15.01,2002.3,6017.2,6.6,3,30.0,29.8,ok,mbit=100.0;loss_pct=0.0066;jitter_ms=0.0069;pps=125001
+calib,udps,100B-200M,2,15.01,1988.2,22149.9,0.2,3,1.6,0.7,ok,mbit=200.0;loss_pct=0.0499;jitter_ms=0.0024;pps=250005
+calib,udps,100B-300M,2,15.02,14.3,28818.3,4.9,3,43.1,38.2,ok,mbit=210.3;loss_pct=0.1367;jitter_ms=0.0035;pps=262857
+calib,udps,100B-20M,3,15.02,2002.3,3148.4,0.1,3,0.0,0.0,ok,mbit=20.0;loss_pct=0.0000;jitter_ms=0.0174;pps=25000
+calib,udps,100B-50M,3,15.02,2001.4,3351.0,0.1,3,0.2,0.0,ok,mbit=50.0;loss_pct=0.0000;jitter_ms=0.0090;pps=62500
+calib,udps,100B-100M,3,15.01,2001.5,6302.1,9.3,3,84.5,84.5,ok,mbit=100.0;loss_pct=0.0082;jitter_ms=0.0023;pps=124999
+calib,udps,100B-200M,3,15.02,1981.1,21011.4,6.0,3,51.4,47.2,ok,mbit=200.0;loss_pct=0.0239;jitter_ms=0.0014;pps=250004
+calib,udps,100B-300M,3,15.02,18.5,27798.9,5.2,3,46.0,42.2,ok,mbit=223.8;loss_pct=0.4049;jitter_ms=0.0036;pps=279808

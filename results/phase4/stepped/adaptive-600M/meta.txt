@@ -1,0 +1,12 @@
+date: 2026-11-17T08:19:53+05:30
+command: scripts/stepped_load.sh -p 10.8.1.53 -a on -r 600M -c 3
+kernel: 7.2.15-netquota  r8169 srcversion: 04E8D19E5DCBE28E8305847
+mode: on  cycles: 3  idle: 10 s  burst: 10 s  rate: 600M  len: default
+Coalesce parameters for enp3s0:
+Adaptive RX: on  TX: n/a
+stats-block-usecs:	n/a
+sample-interval:	n/a
+pkt-rate-low:		n/a
+pkt-rate-high:		n/a
+
+rx-usecs:	0

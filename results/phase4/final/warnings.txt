@@ -1,0 +1,1 @@
+round 2 static-L4: changed during the visit, reads adaptive=off rx-usecs=0 rx-frames=1

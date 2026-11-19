@@ -1,0 +1,3 @@
+date: 2026-11-16T16:21:48+05:30
+command: scripts/dwell_check.sh -p 10.8.1.53 -n 10 -t 20 -r 50M -s 100 -m 100 -l adaptive-50M-p100
+kernel: 7.2.15-netquota  r8169 srcversion: 04E8D19E5DCBE28E8305847

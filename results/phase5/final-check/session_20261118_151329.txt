@@ -1,0 +1,8 @@
+date: 2026-11-18T15:13:29+05:30
+command: scripts/run_matrix.sh -p 10.8.1.53 -o results/phase5/final-check -c off adaptive -w rr udps -r 50M 100M -m 100 -R 1 -V 3 -g performance
+kernel: 7.2.15-netquota
+r8169 srcversion: 04E8D19E5DCBE28E8305847
+governor: performance
+configurations: off adaptive  table: 40 80 200 400
+workloads: rr udps  udp: 300M 600M 900M  udps: 100B at 50M 100M, pacing 100  rrp: 8
+rounds: 1  runs per visit: 3  secs: 20

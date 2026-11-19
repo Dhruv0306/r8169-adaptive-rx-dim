@@ -1,0 +1,9 @@
+time_s,event
+0.00,start
+10.01,burst1_start
+20.02,burst1_end
+30.03,burst2_start
+40.04,burst2_end
+50.04,burst3_start
+60.05,burst3_end
+70.06,end

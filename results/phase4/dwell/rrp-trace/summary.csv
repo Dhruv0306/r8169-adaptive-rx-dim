@@ -1,0 +1,4 @@
+label,workload,param,run,secs,irq_per_s,net_rx_softirq_per_s,cpu_busy_pct,irq_cpu,irq_cpu_busy_pct,irq_cpu_softirq_pct,status,result
+rrp-trace,rrp,64B-x8,1,20.03,5286.9,38112.2,5.0,3,38.9,30.4,ok,tps=67412.84;mean_lat_us=118.65;min_lat_us=60;max_lat_us=202710;instances=8;cpu_nonidle_pct=43.9
+rrp-trace,rrp,64B-x8,2,20.03,4140.9,36933.5,4.5,3,37.8,29.4,ok,tps=68895.16;mean_lat_us=116.09;min_lat_us=57;max_lat_us=207704;instances=8;cpu_nonidle_pct=44.0
+rrp-trace,rrp,64B-x8,3,20.03,6447.6,38817.4,4.5,3,38.8,29.6,ok,tps=66240.35;mean_lat_us=120.74;min_lat_us=60;max_lat_us=1917;instances=8;cpu_nonidle_pct=43.5
