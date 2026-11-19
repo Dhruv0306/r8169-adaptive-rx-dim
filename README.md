@@ -17,7 +17,7 @@ Coursework project for Advanced Operating Systems (CS G623), BITS Pilani Goa. Ta
 | [`docs/setup-and-testing.md`](docs/setup-and-testing.md) | How to set the project up and test each phase |
 | [`docs/demo-and-questions.md`](docs/demo-and-questions.md) | How to run the demo and which questions to expect |
 | [`docs/kernel-changes.md`](docs/kernel-changes.md) | The kernel files changed and why |
-| [`docs/merge-to-shared-repo.md`](docs/merge-to-shared-repo.md) | How to merge the private repository back |
+| [`docs/merge-to-shared-repo.md`](docs/merge-to-shared-repo.md) | How the private repository was merged back (the procedure and its checks) |
 
 ## Why
 

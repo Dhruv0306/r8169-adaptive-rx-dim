@@ -8,7 +8,7 @@ Do this once, at least ten minutes before, because a link-up needs about 35 s be
 
 | Where | What |
 |---|---|
-| PC | Console, logged in as root. `cd /home/aoscsg623/Downloads/r8169-adaptive-rx-dim` (the private clone, on `main`). Phone tether ready: the NIC is the only connection |
+| PC | Console, logged in as root. `cd /home/aoscsg623/Downloads/r8169-adaptive-rx-dim` (the clone, on `main`). Phone tether ready: the NIC is the only connection |
 | PC | The patched module is loaded and signed: `cat /sys/module/r8169/srcversion` prints `04E8D19E5DCBE28E8305847` (the frozen build). If not, `bash scripts/build_sign_load.sh /usr/src/linux-7.2.15` |
 | PC | A copy of the stock module is at `~/r8169-stock-src/` (the way back is `rmmod r8169; modprobe r8169`) |
 | PC | `irqbalance` stopped and the CPU governor as in Phase 4 only if the numbers matter; for the demo the defaults are fine |

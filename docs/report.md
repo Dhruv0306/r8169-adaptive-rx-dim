@@ -1,6 +1,6 @@
 # Adaptive receive interrupt moderation for the Linux r8169 driver
 
-Dhruv Rakeshbhai Patel, M.E. Computer Science, BITS Pilani Goa. Course project, Advanced Operating Systems (CS G623). Target kernel Linux 7.2.15. Repository: `Dhruv0306/r8169-adaptive-rx-dim` (phases 0 to 3, public) and its private continuation (phases 4 and 5).
+Dhruv Rakeshbhai Patel, M.E. Computer Science, BITS Pilani Goa. Course project, Advanced Operating Systems (CS G623). Target kernel Linux 7.2.15. Repository: `Dhruv0306/r8169-adaptive-rx-dim` (all phases, tag `v1.0`).
 
 ## 1. Summary
 

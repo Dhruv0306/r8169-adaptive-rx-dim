@@ -99,4 +99,4 @@ All six stages are in it. Burst: level 400 us with 3,054 to 3,460 irq/s after a 
 
 ## 6. Repository state
 
-Private repository `Dhruv0306/r8169-adaptive-rx-dim-private`, `main` includes Phase 4. Phase 5 work is on the branch `Dhruv_Patel/r8169-report-and-demo`. The shared repository `Dhruv0306/r8169-adaptive-rx-dim` stays at the end of Phase 3 and does not receive Phase 4 or 5 work.
+Phase 5 was done on the branch `Dhruv_Patel/r8169-report-and-demo` of the private repository `Dhruv0306/r8169-adaptive-rx-dim-private`, merged into its `main` and tagged `v1.0` there. The private `main` was then merged into the shared repository `Dhruv0306/r8169-adaptive-rx-dim`, which now holds all phases.

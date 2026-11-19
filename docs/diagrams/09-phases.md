@@ -23,7 +23,7 @@ Exported image: [`img/09-phases.svg`](img/09-phases.svg) ([PNG](img/09-phases.pn
 | 4 | How much does it save, at what cost, and is the table right? | [`phase_4_measurement_and_tuning.md`](../results/phase_4_measurement_and_tuning.md) |
 | 5 | Is it verified on a clean tree and can it be shown? | [`phase_5_report_and_demo.md`](../results/phase_5_report_and_demo.md) |
 
-Phases 0 to 3 were merged into the shared repository, Phases 4 and 5 were done in the private repository (see [merge to the shared repository](../merge-to-shared-repo.md)).
+All phases are in this repository. Phases 0 to 3 were merged first; Phases 4 and 5 were done in a private repository and merged in afterwards (see [merge to the shared repository](../merge-to-shared-repo.md)).
 
 ## Related
 

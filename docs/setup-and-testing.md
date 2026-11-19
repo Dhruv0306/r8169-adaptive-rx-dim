@@ -37,7 +37,7 @@ git tag | tail -3                      # v1.0 is the final state
 ls patches/                            # 0001 to 0006
 ```
 
-On the author's machine the repository `origin` is the shared repository (phases 0 to 3) and the remote `private` holds all phases. Use the repository that has `docs/results/phase_5_report_and_demo.md`.
+The repository holds all phases and carries the tag `v1.0`. On the author's machine the remote `origin` is this repository and `private` is the private working copy used for Phases 4 and 5; a fresh clone of `origin` is enough. Check that `docs/results/phase_5_report_and_demo.md` exists.
 
 Put the kernel source of the running kernel in `/usr/src/linux-7.2.15` (or another path, passed to `build_sign_load.sh`). It needs a `.config` identical to the running kernel's, and the tree must have been built before (`make modules_prepare` is enough for module builds).
 

@@ -13,7 +13,7 @@ Where to find what. Start with the first table; the second lists the working doc
 | See which kernel files were changed or created, and why | [Kernel changes](kernel-changes.md) |
 | Set the project up and test every phase | [Setup and testing](setup-and-testing.md) |
 | Run the demo and prepare for questions | [Demo and questions](demo-and-questions.md), [run sheet](demo.md) |
-| Merge the private repository back into the shared one | [Merge to the shared repository](merge-to-shared-repo.md) |
+| See how the private repository was merged into the shared one | [Merge to the shared repository](merge-to-shared-repo.md) |
 
 ## Working documents
 

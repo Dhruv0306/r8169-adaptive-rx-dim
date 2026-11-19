@@ -1,5 +1,7 @@
 # Merging the private repository back into the shared repository
 
+Status: this is the procedure that was used for the merge of the tag `v1.0`, kept as a record. The statements listed in section 6.3 were updated in the same pull request as the merge.
+
 Phases 0 to 3 were pushed to the shared repository (`origin`, `Dhruv0306/r8169-adaptive-rx-dim`, public). Phases 4 and 5 and everything after were done in the private repository (`private`, `Dhruv0306/r8169-adaptive-rx-dim-private`, no collaborators) so that later work stayed private. This document says how to bring all of it back into the shared repository, step by step, with a check after each step and the conditions under which to stop.
 
 **Merging publishes everything.** The shared repository is public, so every commit, file and tag that reaches it is visible to everyone. Read section 2 before the first push.
