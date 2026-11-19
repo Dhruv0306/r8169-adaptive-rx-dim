@@ -6,6 +6,8 @@ How to set up the project from nothing, and how to test every phase in detail, w
 
 ## 1. What you need
 
+The exact hardware the project was made and tested for, and which other chips the change reaches, is in [hardware](hardware.md). To take the project off the machine again, see [uninstall](uninstall.md).
+
 | Item | Requirement | The author's setup |
 |---|---|---|
 | Machine under test | Linux PC with a Realtek RTL8111/8168 family card (not RTL8125, which the coalescing code does not support), root access, console access | Lenovo desktop, Intel Alder Lake-S, RTL8168h (XID 541, PCI revision 15, firmware rtl8168h-2_0.0.2), interface `enp3s0`, PCI `03:00.0` |

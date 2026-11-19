@@ -167,6 +167,9 @@ The library decides the level. The project supplies the sampling (counters, even
 
 ## 7. Questions you may not expect, and a safe way to answer them
 
+After the demo, [uninstall](uninstall.md) says how to return the machine to the stock driver. For questions about the card and the chips covered, see [hardware](hardware.md).
+
+
 | Question | Safe answer |
 |---|---|
 | "Run it with the stock driver." | `rmmod r8169; modprobe r8169`, wait 40 s, `ethtool -c enp3s0` prints `Adaptive RX: n/a` and `adaptive-rx on` is refused. Then reload the patched module with `build_sign_load.sh`. Do this only if there is time |

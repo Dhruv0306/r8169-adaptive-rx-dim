@@ -17,6 +17,8 @@ Coursework project for Advanced Operating Systems (CS G623), BITS Pilani Goa. Ta
 | [`docs/setup-and-testing.md`](docs/setup-and-testing.md) | How to set the project up and test each phase |
 | [`docs/demo-and-questions.md`](docs/demo-and-questions.md) | How to run the demo and which questions to expect |
 | [`docs/kernel-changes.md`](docs/kernel-changes.md) | The kernel files changed and why |
+| [`docs/hardware.md`](docs/hardware.md) | The exact hardware the driver work is for, and which chips the change reaches |
+| [`docs/uninstall.md`](docs/uninstall.md) | How to remove the modification from the PC and restore the stock driver |
 | [`docs/merge-to-shared-repo.md`](docs/merge-to-shared-repo.md) | How the private repository was merged back (the procedure and its checks) |
 
 ## Why
