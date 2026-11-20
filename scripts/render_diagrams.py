@@ -5,7 +5,8 @@
 Every docs/diagrams/NN-*.md has one ```mermaid block. This script takes the
 block, renders it in a headless Chromium with the mermaid library, checks
 that it parses, and writes docs/diagrams/img/NN-*.svg and .png. A syntax
-error stops the script and names the file.
+error stops the script and names the file; the SVG is serialized as XML and
+checked to be well-formed, with SVG text labels and no foreignObject.
 
 Needs the python playwright package with its Chromium, and the mermaid
 package from npm in some directory:
@@ -21,6 +22,7 @@ import json
 import os
 import re
 import sys
+from xml.dom import minidom
 
 from playwright.sync_api import sync_playwright
 
@@ -48,9 +50,12 @@ def main():
         page = browser.new_page(device_scale_factor=2)
         page.set_content(PAGE)
         page.add_script_tag(path=js)
+        # htmlLabels false at the top level makes mermaid draw labels as SVG
+        # text instead of HTML in a foreignObject, which is portable and valid XML
         page.evaluate(
             "mermaid.initialize({startOnLoad:false, theme:'neutral',"
-            " securityLevel:'strict', flowchart:{htmlLabels:false, curve:'basis'}})"
+            " securityLevel:'strict', htmlLabels:false,"
+            " flowchart:{htmlLabels:false, curve:'basis'}})"
         )
         for f in files:
             name = os.path.basename(f)[:-3]
@@ -62,9 +67,20 @@ def main():
                 )
             except Exception as e:
                 raise SystemExit(f"{f}: mermaid error: {str(e)[:400]}")
-            with open(os.path.join(img, name + ".svg"), "w", encoding="utf-8") as fh:
-                fh.write(svg)
             page.evaluate("(s) => { document.getElementById('out').innerHTML = s; }", svg)
+            # serialize the parsed SVG as XML: the string from mermaid is HTML
+            # (for example an unclosed <br>), which is not valid in an .svg file
+            svg = page.evaluate(
+                "() => new XMLSerializer().serializeToString(document.querySelector('#out svg'))"
+            )
+            try:
+                minidom.parseString(svg.encode("utf-8"))
+            except Exception as e:
+                raise SystemExit(f"{f}: the SVG is not valid XML: {str(e)[:200]}")
+            if "<foreignObject" in svg:
+                raise SystemExit(f"{f}: the SVG still has a foreignObject (HTML labels)")
+            with open(os.path.join(img, name + ".svg"), "w", encoding="utf-8") as fh:
+                fh.write('<?xml version="1.0" encoding="UTF-8"?>\n' + svg + "\n")
             el = page.query_selector("#out svg")
             el.screenshot(path=os.path.join(img, name + ".png"))
             print("rendered", name)
