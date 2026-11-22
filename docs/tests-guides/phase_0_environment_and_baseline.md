@@ -17,7 +17,7 @@ Phase 0 has no numbered tests. The checks below use the labels P0-A to P0-J so l
 |---|---|---|---|---|---|
 | P0-A | Chip and link | `lspci -nn`, `ethtool -i enp3s0`, `ethtool enp3s0` | `r8169`, 1000 Mbit/s full duplex | RTL8168h XID 541, link 1000 full | Pass |
 | P0-B | Static coalescing works | `ethtool -C enp3s0 rx-usecs 50`, `ethtool -c`, then `rx-usecs 0` | `rx-usecs 50`, `rx-frames 0`; after `rx-usecs 0` back to `rx-usecs 0`, `rx-frames 1`; TX unchanged | As expected | Pass |
-| P0-C | Kernel configuration | `zcat /proc/config.gz \| grep -E 'CONFIG_(R8169\|DIMLIB\|MODULE_SIG_FORCE\|LOCKDEP)='` | `R8169=m`, `DIMLIB` y or m, signatures enforced | `R8169=m`, `DIMLIB=y`, `MODULE_SIG_FORCE=y`, `LOCKDEP=y` | Pass |
+| P0-C | Kernel configuration | `zcat /proc/config.gz \| grep -E 'CONFIG_(R8169\|DIMLIB\|MODULE_SIG\|LOCKDEP)=\|MODULE_SIG_FORCE'` | `R8169=m`, `DIMLIB` y or m, `MODULE_SIG` y | `R8169=m`, `DIMLIB=y`, `MODULE_SIG=y` and `MODULE_SIG_FORCE` not set (corrected 2026-11-22), `LOCKDEP=y` | Pass |
 | P0-D | Backup of the stock module and sources | Copy `r8169.ko`, `Kconfig`, `r8169_main.c` to `~/r8169-stock-src/` | Files present | Done | Pass |
 | P0-E | Build path | `make modules_prepare`, `make M=drivers/net/ethernet/realtek modules W=1` | Module builds, `vermagic` equals `uname -r` | Done on the Phase 1 patched tree; an unmodified-tree build was not run on its own | Pass (partly) |
 | P0-F | Peer arranged, tools present | On the peer start `iperf3 -s` and `netserver`; check versions | Both servers answer the benchmark | Same LAN, gigabit link, iperf3 3.16, netperf 2.7.0 | Pass |
