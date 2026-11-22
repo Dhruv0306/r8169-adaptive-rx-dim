@@ -11,7 +11,7 @@ The exact hardware the project was made and tested for, and which other chips th
 | Item | Requirement | The author's setup |
 |---|---|---|
 | Machine under test | Linux PC with a Realtek RTL8111/8168 family card (not RTL8125, which the coalescing code does not support), root access, console access | Lenovo desktop, Intel Alder Lake-S, RTL8168h (XID 541, PCI revision 15, firmware rtl8168h-2_0.0.2), interface `enp3s0`, PCI `03:00.0` |
-| Kernel | Source of the running kernel, `r8169` built as a module, `CONFIG_DIMLIB` available | Linux 7.2.15, tarball in `/usr/src/linux-7.2.15` (not a git tree), `CONFIG_R8169=m`, `CONFIG_DIMLIB=y`, `CONFIG_LOCKDEP=y`, `CONFIG_DEBUG_FS=y`, `CONFIG_MODULE_SIG_FORCE=y`, running as `7.2.15-netquota` (includes the author's network-quota patches) |
+| Kernel | Source of the running kernel, `r8169` built as a module, `CONFIG_DIMLIB` available | Linux 7.2.15, tarball in `/usr/src/linux-7.2.15` (not a git tree), `CONFIG_R8169=m`, `CONFIG_DIMLIB=y`, `CONFIG_LOCKDEP=y`, `CONFIG_DEBUG_FS=y`, `CONFIG_MODULE_SIG=y` (`CONFIG_MODULE_SIG_FORCE` is not set: signatures are not enforced), running as `7.2.15-netquota` (includes the author's network-quota patches) |
 | Peer machine | A second machine on the same gigabit LAN with `iperf3` and `netperf` | Ubuntu 24.04, kernel 7.0.0-42-generic, RTL8168h (rev 15), iperf3 3.16, netperf 2.7.0 |
 | Tools on the PC | `ethtool`, `iperf3`, `netperf`, `python3`, `awk`, `gcc`/`make` and the kernel build prerequisites, `git` | |
 | For the clean-tree checks | A git clone of the kernel at `v7.2.15` (any machine), `perl` | `git clone --depth 1 --branch v7.2.15 https://github.com/gregkh/linux.git ~/linux-r8169-clean` |
@@ -22,7 +22,7 @@ Check the card and the kernel first:
 lspci -nn | grep -i ethernet                  # note the PCI address
 ethtool -i enp3s0                             # driver: r8169
 uname -r
-zcat /proc/config.gz 2>/dev/null | grep -E 'CONFIG_(R8169|DIMLIB|MODULE_SIG_FORCE|LOCKDEP)=' || grep -E 'CONFIG_(R8169|DIMLIB|MODULE_SIG_FORCE|LOCKDEP)=' /boot/config-$(uname -r)
+zcat /proc/config.gz 2>/dev/null | grep -E 'CONFIG_(R8169|DIMLIB|MODULE_SIG|LOCKDEP)=|MODULE_SIG_FORCE' || grep -E 'CONFIG_(R8169|DIMLIB|MODULE_SIG|LOCKDEP)=|MODULE_SIG_FORCE' /boot/config-$(uname -r)
 ```
 
 `CONFIG_R8169` must be `m` (a module you can swap) and `CONFIG_DIMLIB` `y` or `m`. If `CONFIG_DIMLIB` is off in the running kernel, the new module cannot load until the library is built too.
@@ -89,7 +89,7 @@ cd ~/Downloads/r8169-adaptive-rx-dim
 bash scripts/build_sign_load.sh /usr/src/linux-7.2.15
 ```
 
-The script builds with `W=1`, refuses to load when the module's vermagic differs from `uname -r`, signs a copy (`/root/r8169-new-signed.ko`) with `certs/signing_key.pem` and `certs/signing_key.x509` of the tree, runs `rmmod r8169` and `insmod`, and prints the `srcversion`. If your kernel does not enforce signatures, the signing step is harmless. The key never leaves the tree.
+The script builds with `W=1`, refuses to load when the module's vermagic differs from `uname -r`, signs a copy (`/root/r8169-new-signed.ko`) with `certs/signing_key.pem` and `certs/signing_key.x509` of the tree, runs `rmmod r8169` and `insmod`, and prints the `srcversion`. On the author's machine signatures are not enforced (section 1), so the signing step is not required there, but it is harmless and keeps the signer equal to the stock module's. If your kernel enforces signatures it is required. The key never leaves the tree.
 
 The way back to the stock module, at any time:
 
@@ -251,7 +251,7 @@ Expected: the matched run agrees with the Phase 4 final matrix inside the spread
 
 | Symptom | Cause and fix |
 |---|---|
-| `insmod: Key was rejected by service` or `Required key not available` | The kernel enforces signatures: use `build_sign_load.sh` (it signs with the tree's key) |
+| `insmod: Key was rejected by service` or `Required key not available` | Not seen on the author's machine, where signatures are not enforced. On a kernel that enforces them (`cat /sys/module/module/parameters/sig_enforce` prints `Y`, or Secure Boot or lockdown is on), use `build_sign_load.sh` (it signs with the tree's key) |
 | `vermagic does not match` | The source tree is not the one that built the running kernel; use the same version and `.config` |
 | `Unknown symbol` for DIM functions when loading | `CONFIG_DIMLIB` is not built in the running kernel |
 | `ethtool -C ... adaptive-rx on` says operation not supported | The stock module is loaded, or the chip is an RTL8125 |

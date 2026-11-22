@@ -16,7 +16,7 @@ Taken from the Phase 0 results ([`results/phase_0_environment_and_baseline.md`](
 |---|---|
 | Controller | Realtek RTL8111/8168/8211/8411 PCI Express Gigabit Ethernet Controller, chip **RTL8168h/8111h** |
 | Chip identification in the driver | XID 541, `mac_version` `RTL_GIGA_MAC_VER_46` (the driver's table entry `0x541` is named "RTL8168h/8111h"; the entry `0x6c0` "RTL8168M" maps to the same version) |
-| PCI identification | vendor:device `10ec:8168`, revision 15, at `03:00.0` |
+| PCI identification | vendor:device `10ec:8168`, revision 15, subsystem `17aa:32e6` (Lenovo), at `03:00.0` |
 | Firmware file | `rtl8168h-2_0.0.2 02/26/15` (`FIRMWARE_8168H_2`) |
 | Interface name | `enp3s0` |
 | Link | 1000 Mbit/s full duplex, gigabit switch network |
@@ -28,7 +28,7 @@ Taken from the Phase 0 results ([`results/phase_0_environment_and_baseline.md`](
 | Item | Value |
 |---|---|
 | Computer | Lenovo desktop, Intel Alder Lake-S, 20 CPUs |
-| Kernel | `7.2.15-netquota`: Linux 7.2.15 built from `/usr/src/linux-7.2.15` (a tarball) with the owner's network-quota patches; `CONFIG_R8169=m`, `CONFIG_DIMLIB=y`, `CONFIG_LOCKDEP=y`, `CONFIG_DEBUG_FS=y`, `CONFIG_MODULE_SIG_FORCE=y` |
+| Kernel | `7.2.15-netquota`: Linux 7.2.15 built from `/usr/src/linux-7.2.15` (a tarball) with the owner's network-quota patches; `CONFIG_R8169=m`, `CONFIG_DIMLIB=y`, `CONFIG_LOCKDEP=y`, `CONFIG_DEBUG_FS=y`, `CONFIG_MODULE_SIG=y` (`CONFIG_MODULE_SIG_FORCE` is not set: signatures are not enforced; Secure Boot is disabled and the lockdown mode is `none`) |
 | CPU governor | `powersave` in Phases 0 to 3, `performance` in Phases 4 and 5 |
 | NIC interrupt | Pinned to one CPU (CPU 3) with `irqbalance` stopped during Phases 4 and 5; before that the interrupt landed on CPU 7 |
 | Other recorded facts | `dmesg` is restricted for a normal user; `sudo` needs a password, so root work is done in a `su -` shell |

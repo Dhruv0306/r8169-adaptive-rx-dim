@@ -54,7 +54,7 @@ ls -l /root/r8169-new-signed.ko /root/r8169-build.log
 rm -f /root/r8169-new-signed.ko /root/r8169-build.log
 ```
 
-The signed copy is the only file that can load the patched driver on a machine that enforces module signatures, so after this the patched driver cannot be loaded again without a rebuild.
+The signed copy is a build product of the tree: after deleting it, loading the patched driver again needs a rebuild with `build_sign_load.sh`. Signatures are not enforced on this machine, so the signature is not what makes the module loadable.
 
 ## Step 3: restore the kernel source tree
 
@@ -165,7 +165,7 @@ systemctl is-active irqbalance             # active
 
 | Problem | What to do |
 |---|---|
-| No network after `rmmod` | At the console: `modprobe r8169`. If it fails, read `dmesg | tail -20` and `modinfo -n r8169`; a failed load usually means the module file or its signature is wrong, so reboot: the stock module in `/lib/modules` loads at boot. Use the phone tether meanwhile |
+| No network after `rmmod` | At the console: `modprobe r8169`. If it fails, read `dmesg | tail -20` and `modinfo -n r8169`; a failed load usually means the module file is wrong or missing, so reboot: the stock module in `/lib/modules` loads at boot. Use the phone tether meanwhile |
 | `modprobe r8169` loads the patched module | Check `modinfo -n r8169`: if it points to `/root` or the kernel tree, the module path was changed. It should be under `/lib/modules/<kernel>/`. `depmod -a` rebuilds the index |
 | `patch -R` fails | The tree is not in the state of the patched series (partly restored, or a different version). Use step 3.1 instead and compare with `cmp` |
 | The stock backup is missing | Take the two files from a clean `v7.2.15` source: `git show v7.2.15:drivers/net/ethernet/realtek/r8169_main.c` in a kernel git tree, or from the original source tarball |
