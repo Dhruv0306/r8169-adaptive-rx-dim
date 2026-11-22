@@ -14,6 +14,7 @@ Where to find what. Start with the first table; the second lists the working doc
 | Know the exact hardware this was made and tested for | [Hardware](hardware.md) |
 | Remove the modification from the PC after the demo | [Uninstall](uninstall.md) |
 | Set the project up and test every phase | [Setup and testing](setup-and-testing.md) |
+| See every test of a phase with its commands and results | [Test guides](tests-guides/), one per phase (0 to 5) |
 | Run the demo and prepare for questions | [Demo and questions](demo-and-questions.md), [run sheet](demo.md) |
 | See how the private repository was merged into the shared one | [Merge to the shared repository](merge-to-shared-repo.md) |
 
