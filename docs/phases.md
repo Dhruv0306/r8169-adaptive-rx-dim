@@ -1,8 +1,8 @@
 # Phase-by-phase plan
 
-Detailed plan for adaptive receive interrupt moderation in `r8169` on Linux 7.2.15. Each remaining phase has a more detailed plan in [`plans/`](plans/) (`plan-<number>-<title>.md`). The design is in [`plan.md`](plan.md) and the project context in [`handoff.md`](handoff.md). This page turns them into ordered work: what to do in each phase, which files change, what is delivered, and when a phase counts as done.
+Detailed plan for adaptive receive interrupt moderation in `r8169` on Linux 7.2.15. Each phase has a more detailed plan in [`plans/`](plans/) (`plan-<number>-<title>.md`). The design is in [`plan.md`](plan.md) and the project context in [`handoff.md`](handoff.md). This page turns them into ordered work: what to do in each phase, which files change, what is delivered, and when a phase counts as done.
 
-Nothing here has been built or run yet. Commands are proposals and paths are assumptions for the author's machine.
+All six phases are done (see the tracker at the end). The text of each phase below is the plan as it was written; what was actually run, with the outcomes and deviations, is in [`results/`](results/), and the tests of each phase with their commands are in [`tests-guides/`](tests-guides/). Paths are the author's.
 
 ## How the phases fit together
 
@@ -26,6 +26,7 @@ Each phase ends with something that builds and loads, so a problem can always be
 - Before any module load: the stock `r8169` module is backed up, and a console or phone tether is ready, because the NIC is the machine's only network connection.
 - Every phase ends with `scripts/checkpatch.pl --strict` on the new patches, and a clean `make W=1` build of the module.
 - At the end of each phase, write its results to `docs/results/phase_<number>_<title>.md`: what was done, the commands and outputs, the test results, deviations from the plan, gaps and open items. The files are `phase_0_environment_and_baseline.md`, `phase_1_plumbing.md`, `phase_2_adaptive_core.md`, `phase_3_robustness.md`, `phase_4_measurement_and_tuning.md` and `phase_5_report_and_demo.md`. A phase is not done until its results file exists.
+- Every test or check run in a phase is listed, with its commands, expected outcome and observed result, in `docs/tests-guides/phase_<number>_<title>.md` (same file names as the results files). Update the guide when a phase is retested.
 - `docs/handoff.md` is only for moving context into a new chat. It is not a results log. Phase results go in `docs/results/`, and the handoff points to them.
 
 ---

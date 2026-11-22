@@ -15,6 +15,7 @@ Coursework project for Advanced Operating Systems (CS G623), BITS Pilani Goa. Ta
 | [`docs/diagrams/`](docs/diagrams/README.md) | Diagrams: an overview and one detail diagram per part |
 | [`docs/results-explained.md`](docs/results-explained.md) | What was measured and what each result means |
 | [`docs/setup-and-testing.md`](docs/setup-and-testing.md) | How to set the project up and test each phase |
+| [`docs/tests-guides/`](docs/tests-guides/) | One guide per phase (0 to 5) listing every test with its commands, expected and observed results |
 | [`docs/demo-and-questions.md`](docs/demo-and-questions.md) | How to run the demo and which questions to expect |
 | [`docs/kernel-changes.md`](docs/kernel-changes.md) | The kernel files changed and why |
 | [`docs/hardware.md`](docs/hardware.md) | The exact hardware the driver work is for, and which chips the change reaches |

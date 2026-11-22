@@ -125,7 +125,7 @@ make M=drivers/net/ethernet/realtek C=2 CF="-D__CHECK_ENDIAN__" r8169_main.o    
 
 ## 6. Testing each phase
 
-All commands as root at the console from the repository root, with `PEER` exported and the peer servers running. `enp3s0` is the author's interface name. Test numbers (F1, T5, ...) are the ones used in the phase results files.
+All commands as root at the console from the repository root, with `PEER` exported and the peer servers running. `enp3s0` is the author's interface name. Test numbers (F1, T5, ...) are the ones used in the phase results files. The complete list of tests per phase, with conditions, observed results and pitfalls, is in [`tests-guides/`](tests-guides/), one file per phase.
 
 The phases and what each one answers are drawn in [diagram 9](diagrams/09-phases.md).
 
