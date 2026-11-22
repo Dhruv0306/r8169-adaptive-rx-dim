@@ -30,7 +30,7 @@ Plan: [`../phases.md`](../phases.md), Phase 0.
 | Kernel | `7.2.15-netquota`, tree `/usr/src/linux-7.2.15`, 20 CPUs, governor `powersave` |
 | `CONFIG_R8169` | `m` |
 | `CONFIG_DIMLIB` | `y` (built in, so no kernel rebuild is needed) |
-| `CONFIG_MODULE_SIG_FORCE` | `y`, hash `sha512`, key `certs/signing_key.pem` |
+| `CONFIG_MODULE_SIG` | `y`; `CONFIG_MODULE_SIG_FORCE` is not set (corrected 2026-11-22, this row first said `y`), hash `sha512`, key `certs/signing_key.pem`. Unsigned modules are not rejected: `module.sig_enforce` is `N`, Secure Boot is off, the lockdown mode is `none` |
 | `CONFIG_LOCKDEP` | `y` |
 | Stock module | Uncompressed, `/lib/modules/7.2.15-netquota/kernel/drivers/net/ethernet/realtek/r8169.ko`, srcversion `A8C76016444D067D3998384` |
 | Phase 1 module | Signed copy `/root/r8169-new-signed.ko`, srcversion `9BF0EA4C816C5F152E47686` |

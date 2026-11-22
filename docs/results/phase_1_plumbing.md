@@ -18,7 +18,7 @@ Two patches against `v7.2.15`, in `patches/`. Author Dhruv Rakeshbhai Patel, wit
 1. `patch -p1 --dry-run` on `/usr/src/linux-7.2.15`: both patches applied cleanly. 0002 showed "offset -7 lines" because it was tested before 0001; after 0001 it applied with no offset.
 2. Applied both with `patch -p1` as root, after backing up the stock files to `~/r8169-stock-src/`.
 3. `make modules_prepare`, then `make M=drivers/net/ethernet/realtek modules W=1`. `r8169_main.c` compiled with no warning or error. `modinfo -F vermagic` printed `7.2.15-netquota SMP preempt mod_unload modversions`, matching `uname -r`.
-4. The kernel enforces signatures (`CONFIG_MODULE_SIG_FORCE=y`), so the build output cannot be loaded as it is. A copy was signed with the key in the tree:
+4. The kernel has module signing on (`CONFIG_MODULE_SIG=y`). It was believed at the time to enforce it, which turned out not to be the case (`CONFIG_MODULE_SIG_FORCE` is not set). A copy was signed with the key in the tree, so that it carries the same signer as the stock module:
 
    ```bash
    cp drivers/net/ethernet/realtek/r8169.ko /root/r8169-new-signed.ko
@@ -45,7 +45,7 @@ After the load: the interface came back with link up at 1000 Mbit/s full, and `d
 ## Issues met and how they were resolved
 
 - **`git am` failed in the project repository.** The patches change kernel files, which the project repository does not contain. They are applied in the kernel tree, with `patch -p1` on the tarball tree.
-- **`insmod` would have been rejected** because of `CONFIG_MODULE_SIG_FORCE=y`. Resolved by signing a copy (step 4).
+- The module was signed on the assumption that `insmod` would reject an unsigned one (`CONFIG_MODULE_SIG_FORCE=y`, as then recorded). That assumption was wrong: `CONFIG_MODULE_SIG_FORCE` is not set and signatures are not enforced on this machine. The signed copy is harmless and keeps the signer equal to the stock module's.
 - **Placeholders pasted into a shell** (`DEV=<your interface name>`) made `ethtool` fail on the first run. Rerun with `DEV=enp3s0`.
 
 ## Deviations from the plan

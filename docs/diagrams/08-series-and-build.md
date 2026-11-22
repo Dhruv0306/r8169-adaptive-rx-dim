@@ -42,7 +42,7 @@ The complete list of changes, function by function, is in [kernel changes](../ke
 
 ## Why it is built this way
 
-- The kernel on the PC enforces module signatures (`CONFIG_MODULE_SIG_FORCE=y`), so a rebuilt module has to be signed with the key of the tree it was built from before `insmod`. The unsigned build output is left unchanged and the key never leaves the tree.
+- The kernel on the PC has module signing switched on (`CONFIG_MODULE_SIG=y`) but does not enforce it: `CONFIG_MODULE_SIG_FORCE` is not set, `module.sig_enforce` is `N`, Secure Boot is disabled and the lockdown mode is `none`, so an unsigned module would load as well. `build_sign_load.sh` still signs a copy with the key of the tree it was built from, so the loaded module carries the same signer as the stock module. The unsigned build output is left unchanged and the key never leaves the tree.
 - `scripts/build_sign_load.sh` does the build, the vermagic check, the signing and the swap in one command.
 - The series is split so that behaviour can be observed before any register is touched: 0003 only logs the level DIM chooses, and 0004 starts writing the register.
 - The stock module stays installed, so `rmmod r8169; modprobe r8169` is always the way back. The card is the PC's only connection, so this is done at the console.

@@ -5,7 +5,7 @@ Tests of the module built from patches 0001 and 0002 only. The `adaptive-rx` fla
 ## Conditions
 
 - Patches 0001 and 0002 applied to `/usr/src/linux-7.2.15` (after backing up the stock files to `~/r8169-stock-src/`), built with `bash scripts/build_sign_load.sh`, loaded as a signed copy. Module `srcversion` `9BF0EA4C816C5F152E47686`.
-- Kernel enforces signatures (`CONFIG_MODULE_SIG_FORCE=y`), so the build output must be signed with the tree's key before `insmod`. The key never leaves the tree.
+- The kernel has module signing on (`CONFIG_MODULE_SIG=y`) but does not enforce it (`CONFIG_MODULE_SIG_FORCE` is not set), so signing is optional; the build script signs a copy with the tree's key to keep the signer equal to the stock module's. The key never leaves the tree.
 - Machine, peer and cautions as in the [Phase 0 guide](phase_0_environment_and_baseline.md).
 
 ## Tests

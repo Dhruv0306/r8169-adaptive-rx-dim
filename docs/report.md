@@ -115,7 +115,7 @@ The setup is drawn in [diagram 7](diagrams/07-measurement-setup.md); how to repe
 
 | Item | Value |
 |---|---|
-| Machine under test | Lenovo desktop, Intel Alder Lake-S; RTL8168h (XID 541, PCI revision 15, firmware rtl8168h-2_0.0.2), interface `enp3s0`, link 1 Gbit/s full duplex; kernel `7.2.15-netquota` (a build of 7.2.15 with the owner's network-quota patches), `CONFIG_R8169=m`, `CONFIG_DIMLIB=y`, `CONFIG_LOCKDEP=y`, module signatures enforced |
+| Machine under test | Lenovo desktop, Intel Alder Lake-S; RTL8168h (XID 541, PCI revision 15, firmware rtl8168h-2_0.0.2), interface `enp3s0`, link 1 Gbit/s full duplex; kernel `7.2.15-netquota` (a build of 7.2.15 with the owner's network-quota patches), `CONFIG_R8169=m`, `CONFIG_DIMLIB=y`, `CONFIG_LOCKDEP=y`, module signing on but not enforced (`CONFIG_MODULE_SIG_FORCE` not set) |
 | Peer | Ubuntu 24.04, kernel 7.0.0-42-generic, RTL8168h (rev 15), same LAN over a gigabit link; iperf3 3.16, netperf 2.7.0 |
 | Phase 4 session | CPU governor `performance` (Phases 0 to 3 used `powersave`), NIC interrupt pinned to CPU 3, `irqbalance` stopped |
 

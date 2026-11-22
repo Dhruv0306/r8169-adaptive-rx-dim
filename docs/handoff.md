@@ -70,7 +70,7 @@ Known from the earlier part of the course project and from the logs the owner su
 
 The running kernel already contains the network-quota hooks, so the baseline and all later measurements are on the same kernel, which keeps comparisons fair. The hooks are not expected to affect this work.
 
-Measured facts (chip RTL8168h/8111h, link speed, static coalescing support, `DIMLIB=y` with `r8169` a module, `MODULE_SIG_FORCE=y`) are recorded in `docs/results/phase_0_environment_and_baseline.md`.
+Measured facts (chip RTL8168h/8111h, link speed, static coalescing support, `DIMLIB=y` with `r8169` a module, `MODULE_SIG=y` with `MODULE_SIG_FORCE` not set) are recorded in `docs/results/phase_0_environment_and_baseline.md`.
 
 What the baseline showed (details and tables in the Phase 0 results file): the Phase 1 module with adaptive off matches the stock module; bulk TCP at 941 Mbit/s takes only about 2 interrupts per second, so there is almost nothing to moderate; request-response takes 2 interrupts per transaction and any static timer only adds latency (+42 microseconds for 50, +187 for 200); UDP shows fewer NET_RX softirqs with a timer and no loss either way. The all-CPU busy figure was too noisy to use, so later runs use per-CPU columns. A small or negative gain is therefore a likely outcome and is acceptable.
 
@@ -140,7 +140,7 @@ Since Phase 2 the build, sign and swap steps are one script, `bash scripts/build
 - The NIC is the machine's only network connection. Do not run tests over a network session into the same machine, and keep a console or phone tether ready. Always keep a copy of the stock `r8169` module.
 - `ethtool -C` merges the new setting with the current ones, so values from an earlier command carry over (a leftover `rx-frames 8` keeps a frame limit). It treats `rx-frames 1` as "no frame limit"; the stock driver uses this convention when reading values back.
 - The module will not load if the kernel tree is not the one that built the running kernel.
-- The running kernel enforces module signatures (`CONFIG_MODULE_SIG_FORCE=y`): a rebuilt `r8169.ko` must be signed with the key in `/usr/src/linux-7.2.15/certs/` before `insmod`. Never copy `certs/signing_key.pem` out of the tree.
+- The running kernel has module signing on but does not enforce it (`CONFIG_MODULE_SIG=y`, `CONFIG_MODULE_SIG_FORCE` not set, Secure Boot off, lockdown `none`). The build script still signs a copy of `r8169.ko` with the key in `/usr/src/linux-7.2.15/certs/`, so that it carries the same signer as the stock module. Never copy `certs/signing_key.pem` out of the tree.
 - Moving files between Windows and Linux can turn line endings into CRLF, which breaks `patch`. Use `git clone` or `git pull` on the Linux machine. The `.gitattributes` file (renamed from a misspelt name) enforces LF for sources, scripts and patches.
 - `dmesg` is restricted for a normal user on this machine; use `su -`. `sudo` needs the password. In a root shell `~` is `/root`, so use the full path `/home/aoscsg623/Downloads/r8169-adaptive-rx-dim`.
 - `ping` to the peer answers, but to the gateway and the internet it got no replies in Phase 0; latency probes keep using TCP or UDP.
